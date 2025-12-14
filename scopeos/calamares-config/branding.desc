@@ -1,0 +1,30 @@
+---
+componentName: scopeos
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowPlacement: center
+sidebar: widget
+navigation: widget
+
+strings:
+    productName:         ScopeOS
+    shortProductName:    ScopeOS
+    version:             1.0
+    shortVersion:        1.0
+    versionedName:       ScopeOS 1.0
+    shortVersionedName:  ScopeOS 1.0
+    bootloaderEntryName: ScopeOS
+
+images:
+    productLogo:         "scopeos-logo.png"
+    productIcon:         "scopeos-logo.png"
+    productWelcome:      "scopeos-logo.png"
+
+slideshow:               []
+
+style:
+   sidebarBackground:    "#292F34"
+   sidebarText:          "#FFFFFF"
+   sidebarTextSelect:    "#292F34"
+   sidebarTextHighlight: "#D35400"

@@ -1,0 +1,31 @@
+---
+groupsUrl: null
+required: false
+
+groups:
+  - name: "Web Browsers"
+    description: "Internet navigation tools"
+    packages:
+      - name: google-chrome-stable
+        description: "Google Chrome"
+      - name: firefox
+        description: "Mozilla Firefox"
+        selected: true
+
+  - name: "Development"
+    description: "Tools for coding"
+    packages:
+      - name: code
+        description: "Visual Studio Code"
+
+  - name: "Multimedia"
+    description: "Music and Video"
+    packages:
+      - name: spotify-client
+        description: "Spotify Music"
+
+  - name: "Office"
+    description: "Productivity Suite"
+    packages:
+      - name: libreoffice
+        description: "LibreOffice Suite"
