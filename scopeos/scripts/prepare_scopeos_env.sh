@@ -6,7 +6,7 @@ set -e
 
 # Variables
 SCOPEOS_DIR="/opt/scopeos"
-REPO_URL="https://github.com/yourusername/scopeos.git" # Placeholder
+REPO_URL="https://github.com/PanMajster1/scopeosdev.git"
 
 echo "=== Starting ScopeOS System Preparation ==="
 
