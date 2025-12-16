@@ -119,7 +119,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         print(f"Applying theme: {theme_id}")
 
         # Configuration mapping for themes
-        # These are placeholders. Real themes need exact names installed in /usr/share/themes
+        # Configured to match themes installed by scopeos/scripts/download_themes.sh
         theme_configs = {
             "macos": {
                 "gtk": "WhiteSur-Light",
@@ -138,9 +138,9 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 "panel": True # Bottom panel style (requires Dash to Panel extension)
             },
             "win11": {
-                "gtk": "Windows-11",
-                "icon": "Windows-11",
-                "shell": "Windows-11",
+                "gtk": "Fluent-Light",
+                "icon": "Fluent",
+                "shell": "Fluent-Light",
                 "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
                 "dock": False,
                 "panel": True
