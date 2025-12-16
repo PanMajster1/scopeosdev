@@ -1,23 +1,26 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Master Script to Prepare ScopeOS Environment
 # This script is intended to be run INSIDE the chroot of the ISO builder (e.g., Cubic terminal).
 
 # Variables
 SCOPEOS_DIR="/opt/scopeos"
-REPO_URL="https://github.com/PanMajster1/scopeosdev.git"
+# REPO_URL="https://github.com/PanMajster1/scopeosdev.git" # Unused in this context if we assume local copy
 
 echo "=== Starting ScopeOS System Preparation ==="
+
+export DEBIAN_FRONTEND=noninteractive
 
 # 0. System Updates
 apt-get update
 apt-get upgrade -y
 
 # 1. Install Dependencies
+# Combined installation for optimization
 apt-get install -y \
     calamares \
-    calamares-settings-ubuntu \
+    calamares-settings-ubuntu-common \
     python3-gi \
     python3-gi-cairo \
     gir1.2-gtk-4.0 \
@@ -25,7 +28,9 @@ apt-get install -y \
     git \
     curl \
     gnome-shell-extension-manager \
-    gnome-shell-extensions
+    gnome-shell-extensions \
+    gpg \
+    software-properties-common
 
 # 2. Setup Directory & Repositories (for Netinstall apps)
 echo "Adding third-party repositories..."
@@ -47,15 +52,17 @@ echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository
 apt-get update
 
 mkdir -p "$SCOPEOS_DIR"
-# In a real scenario, you might clone the repo here.
-# For this script, we assume the 'scopeos' folder (from this repo) is copied to /opt/scopeos
-# cp -r /path/to/local/scopeos/* "$SCOPEOS_DIR/"
 
 # 3. Install Themes
-bash "$SCOPEOS_DIR/scripts/download_themes.sh"
+if [ -f "$SCOPEOS_DIR/scripts/download_themes.sh" ]; then
+    bash "$SCOPEOS_DIR/scripts/download_themes.sh"
+else
+    echo "Error: Theme download script not found at $SCOPEOS_DIR/scripts/download_themes.sh" >&2
+    exit 1
+fi
 
 # 4. Install Theme Switcher App
-# We'll install it as a python script executable from /usr/local/bin
+echo "Installing Control Center..."
 cp "$SCOPEOS_DIR/theme-switcher/scopeos-control-center.py" /usr/local/bin/scopeos-control-center
 chmod +x /usr/local/bin/scopeos-control-center
 
@@ -72,6 +79,7 @@ Categories=Settings;
 EOF
 
 # 5. Configure Calamares
+echo "Configuring Calamares..."
 # Copy main configs to /etc/calamares
 cp -r "$SCOPEOS_DIR/calamares-config/settings.conf" /etc/calamares/
 cp -r "$SCOPEOS_DIR/calamares-config/modules" /etc/calamares/
@@ -83,10 +91,14 @@ cp "$SCOPEOS_DIR/calamares-config/branding.desc" /usr/share/calamares/branding/s
 cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/calamares/branding/scopeos/
 
 # 6. Privacy Cleanup
-bash "$SCOPEOS_DIR/scripts/privacy_cleanup.sh"
+if [ -f "$SCOPEOS_DIR/scripts/privacy_cleanup.sh" ]; then
+    bash "$SCOPEOS_DIR/scripts/privacy_cleanup.sh"
+else
+    echo "Warning: Privacy cleanup script not found."
+fi
 
 # 7. Set Default Wallpaper and Theme (MacOS Like)
-# This sets the global default for new users
+echo "Setting defaults..."
 mkdir -p /etc/dconf/db/local.d/
 cat <<EOF > /etc/dconf/db/local.d/10-scopeos-theme
 [org/gnome/desktop/interface]
