@@ -213,10 +213,9 @@ class ThemeCard(Gtk.Box):
         self.set_margin_start(12)
         self.set_margin_end(12)
 
-        # Placeholder Icon/Image
-        icon = Gtk.Image.new_from_icon_name(theme_data.get("icon", "image-missing"))
-        icon.set_pixel_size(64)
-        self.append(icon)
+        # Theme Preview (Icon or Image)
+        preview_widget = self._create_theme_preview(theme_data)
+        self.append(preview_widget)
 
         # Label
         label = Gtk.Label(label=theme_data["name"])
@@ -228,6 +227,24 @@ class ThemeCard(Gtk.Box):
         button.add_css_class("suggested-action")
         button.connect("clicked", lambda x: apply_callback(theme_data["id"]))
         self.append(button)
+
+    def _create_theme_preview(self, theme_data):
+        preview_path = theme_data.get("preview")
+        if preview_path and os.path.exists(preview_path):
+            try:
+                # Use Gtk.Picture for file-based previews (better for photos/screenshots)
+                picture = Gtk.Picture.new_for_filename(preview_path)
+                picture.set_content_fit(Gtk.ContentFit.CONTAIN)
+                picture.set_size_request(64, 64)
+                return picture
+            except Exception as e:
+                print(f"Error loading preview for {theme_data['name']}: {e}")
+
+        # Fallback to Icon
+        icon_name = theme_data.get("icon", "image-missing")
+        icon = Gtk.Image.new_from_icon_name(icon_name)
+        icon.set_pixel_size(64)
+        return icon
 
 if __name__ == "__main__":
     app = ScopeOSControlCenter()
