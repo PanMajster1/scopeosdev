@@ -90,6 +90,31 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", f"'{scheme}'"])
         return True # Enable the switch change
 
+    def is_extension_installed(self, extension_id):
+        try:
+            # 'gnome-extensions info' returns exit code 0 if found, non-zero if not.
+            subprocess.run(
+                ["gnome-extensions", "info", extension_id],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
+    def set_extension_state(self, extension_id, enable):
+        if not self.is_extension_installed(extension_id):
+            print(f"Extension {extension_id} is not installed.")
+            return
+
+        action = "enable" if enable else "disable"
+        print(f"{action.capitalize()}ing {extension_id}...")
+        try:
+            subprocess.run(["gnome-extensions", action, extension_id], check=True)
+        except Exception as e:
+            print(f"Error {action}ing extension {extension_id}: {e}")
+
     def apply_theme(self, theme_id):
         print(f"Applying theme: {theme_id}")
 
@@ -101,35 +126,40 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 "icon": "WhiteSur",
                 "shell": "WhiteSur-Light",
                 "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
-                "dock": True # Enable dash-to-dock
+                "dock": True, # Enable dash-to-dock
+                "panel": False
             },
             "win10": {
                 "gtk": "Windows-10",
                 "icon": "Windows-10",
                 "shell": "Windows-10",
                 "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
-                "dock": False # Bottom panel style (requires Dash to Panel extension usually)
+                "dock": False,
+                "panel": True # Bottom panel style (requires Dash to Panel extension)
             },
             "win11": {
                 "gtk": "Windows-11",
                 "icon": "Windows-11",
                 "shell": "Windows-11",
                 "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
-                "dock": False
+                "dock": False,
+                "panel": True
             },
             "ubuntu": {
                 "gtk": "Yaru",
                 "icon": "Yaru",
                 "shell": "Yaru",
                 "wallpaper": "/usr/share/backgrounds/ubuntu-wallpaper.jpg",
-                "dock": True
+                "dock": True,
+                "panel": False
             },
             "gnome": {
                 "gtk": "Adwaita",
                 "icon": "Adwaita",
                 "shell": "Default", # or empty
                 "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
-                "dock": False
+                "dock": False,
+                "panel": False
             },
         }
 
@@ -154,13 +184,18 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 print(f"Error executing command: {e}")
 
         # Handle Extensions (Dock vs Panel)
-        # This assumes extensions like dash-to-dock or dash-to-panel are installed
+        dash_to_dock_id = "dash-to-dock@micxgx.gmail.com"
+        dash_to_panel_id = "dash-to-panel@jderose9.github.com"
+
         if config.get("dock"):
-            print("Enabling Dash to Dock...")
-            # subprocess.run(["gnome-extensions", "enable", "dash-to-dock@micxgx.gmail.com"])
+            self.set_extension_state(dash_to_dock_id, True)
         else:
-            print("Disabling Dash to Dock / Enabling Panel...")
-            # subprocess.run(["gnome-extensions", "disable", "dash-to-dock@micxgx.gmail.com"])
+            self.set_extension_state(dash_to_dock_id, False)
+
+        if config.get("panel"):
+            self.set_extension_state(dash_to_panel_id, True)
+        else:
+            self.set_extension_state(dash_to_panel_id, False)
 
         # Show success message (simple dialog)
         dialog = Adw.MessageDialog(
