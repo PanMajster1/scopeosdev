@@ -45,7 +45,9 @@ install_git_theme "https://github.com/B00merang-Project/Windows-10-Icons.git" "W
 
 # 3. Windows 11 Theme
 echo "Installing Windows 11 Theme..."
-install_git_theme "https://github.com/yeyushengfan258/Windows-11-theme-linux.git" "Windows-11" "mkdir -p $THEMES_DIR/Windows-11 && cp -r gtk-4.0 $THEMES_DIR/Windows-11/"
+# Using vinceliuice's Fluent-gtk-theme as per project requirements
+install_git_theme "https://github.com/vinceliuice/Fluent-gtk-theme.git" "Fluent-gtk-theme" "./install.sh -d $THEMES_DIR"
+install_git_theme "https://github.com/vinceliuice/Fluent-icon-theme.git" "Fluent-icon-theme" "./install.sh -d $ICONS_DIR"
 
 # 4. Backgrounds
 echo "Downloading Wallpapers..."
