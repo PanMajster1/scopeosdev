@@ -1,7 +1,9 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 echo "Starting ScopeOS Privacy Cleanup..."
+
+export DEBIAN_FRONTEND=noninteractive
 
 # 1. Remove Telemetry Packages
 PACKAGES_TO_REMOVE=(
@@ -11,19 +13,16 @@ PACKAGES_TO_REMOVE=(
     "popcon"
 )
 
-for pkg in "${PACKAGES_TO_REMOVE[@]}"; do
-    if dpkg -l | grep -q "$pkg"; then
-        echo "Removing $pkg..."
-        apt-get remove --purge -y "$pkg" || echo "Failed to remove $pkg"
-    fi
-done
+# Expand the array to list of arguments
+echo "Removing telemetry packages: ${PACKAGES_TO_REMOVE[*]}"
+# Using "|| true" to ensure script doesn't fail if some packages are already missing
+apt-get remove --purge -y "${PACKAGES_TO_REMOVE[@]}" || true
 
 # 2. Disable Telemetry Services (if any remain)
-systemctl disable --now apport.service || true
-systemctl disable --now whoopsie.service || true
+systemctl disable --now apport.service 2>/dev/null || true
+systemctl disable --now whoopsie.service 2>/dev/null || true
 
 # 3. Configure Privacy Settings (gsettings defaults for new users)
-# This usually requires creating a dconf override file
 mkdir -p /etc/dconf/db/local.d/
 
 cat <<EOF > /etc/dconf/db/local.d/99-scopeos-privacy

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import sys
-import gi
 import os
 import subprocess
+import threading
 
+import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GLib
@@ -52,7 +53,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         ]
 
         for theme in themes:
-            card = ThemeCard(theme, self.apply_theme)
+            card = ThemeCard(theme, self.on_apply_theme_clicked)
             flowbox.append(card)
 
         # Dark Mode Group
@@ -72,8 +73,15 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         dark_mode_row.add_suffix(switch)
         dark_mode_group.add(dark_mode_row)
 
+        # Spinner for busy state
+        self.spinner = Gtk.Spinner()
+        self.spinner.set_size_request(32, 32)
+        # We can add this to the headerbar or show a toast/overlay.
+        # For simplicity, we might just use it in a toast or dialog, but here I'll leave it
+        # as a potential future improvement or add it to the window content if needed.
+        # Instead of a spinner, we'll rely on the Toast to show "Applying..."
+
     def is_dark_mode(self):
-        # Check current setting via gsettings
         try:
             result = subprocess.check_output(
                 ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
@@ -81,18 +89,16 @@ class ScopeOSWindow(Adw.PreferencesWindow):
             ).strip()
             return "dark" in result
         except Exception:
-            return False # Default assumption
+            return False
 
     def toggle_dark_mode(self, switch, state):
         scheme = "prefer-dark" if state else "default"
         print(f"Setting color scheme to: {scheme}")
-        # In real env:
         subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", f"'{scheme}'"])
-        return True # Enable the switch change
+        return True
 
     def is_extension_installed(self, extension_id):
         try:
-            # 'gnome-extensions info' returns exit code 0 if found, non-zero if not.
             subprocess.run(
                 ["gnome-extensions", "info", extension_id],
                 check=True,
@@ -115,18 +121,32 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         except Exception as e:
             print(f"Error {action}ing extension {extension_id}: {e}")
 
-    def apply_theme(self, theme_id):
+    def on_apply_theme_clicked(self, theme_id):
+        # Show feedback immediately
+        self.add_toast(Adw.Toast.new(f"Applying theme {theme_id}..."))
+
+        # Run in a separate thread to avoid freezing the UI
+        thread = threading.Thread(target=self.apply_theme_thread, args=(theme_id,))
+        thread.daemon = True
+        thread.start()
+
+    def apply_theme_thread(self, theme_id):
+        try:
+            self.perform_theme_change(theme_id)
+            GLib.idle_add(self.on_theme_applied_success, theme_id)
+        except Exception as e:
+            GLib.idle_add(self.on_theme_applied_error, str(e))
+
+    def perform_theme_change(self, theme_id):
         print(f"Applying theme: {theme_id}")
 
-        # Configuration mapping for themes
-        # Configured to match themes installed by scopeos/scripts/download_themes.sh
         theme_configs = {
             "macos": {
                 "gtk": "WhiteSur-Light",
                 "icon": "WhiteSur",
                 "shell": "WhiteSur-Light",
                 "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
-                "dock": True, # Enable dash-to-dock
+                "dock": True,
                 "panel": False
             },
             "win10": {
@@ -135,7 +155,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 "shell": "Windows-10",
                 "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
                 "dock": False,
-                "panel": True # Bottom panel style (requires Dash to Panel extension)
+                "panel": True
             },
             "win11": {
                 "gtk": "Fluent-Light",
@@ -156,7 +176,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
             "gnome": {
                 "gtk": "Adwaita",
                 "icon": "Adwaita",
-                "shell": "Default", # or empty
+                "shell": "Default",
                 "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
                 "dock": False,
                 "panel": False
@@ -165,9 +185,8 @@ class ScopeOSWindow(Adw.PreferencesWindow):
 
         config = theme_configs.get(theme_id)
         if not config:
-            return
+            raise ValueError("Unknown theme ID")
 
-        # Commands to execute
         commands = [
             ["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", config["gtk"]],
             ["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", config["icon"]],
@@ -178,12 +197,8 @@ class ScopeOSWindow(Adw.PreferencesWindow):
 
         for cmd in commands:
             print(f"Executing: {' '.join(cmd)}")
-            try:
-                subprocess.run(cmd, check=False)
-            except Exception as e:
-                print(f"Error executing command: {e}")
+            subprocess.run(cmd, check=False)
 
-        # Handle Extensions (Dock vs Panel)
         dash_to_dock_id = "dash-to-dock@micxgx.gmail.com"
         dash_to_panel_id = "dash-to-panel@jderose9.github.com"
 
@@ -197,13 +212,23 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         else:
             self.set_extension_state(dash_to_panel_id, False)
 
-        # Show success message (simple dialog)
+    def on_theme_applied_success(self, theme_id):
         dialog = Adw.MessageDialog(
             heading="Theme Applied",
             body=f"Successfully switched to {theme_id} theme.",
         )
         dialog.add_response("ok", "OK")
-        dialog.present(self)
+        dialog.set_transient_for(self)
+        dialog.present()
+
+    def on_theme_applied_error(self, error_msg):
+        dialog = Adw.MessageDialog(
+            heading="Error Applying Theme",
+            body=f"An error occurred: {error_msg}",
+        )
+        dialog.add_response("ok", "OK")
+        dialog.set_transient_for(self)
+        dialog.present()
 
 class ThemeCard(Gtk.Box):
     def __init__(self, theme_data, apply_callback):
@@ -213,16 +238,13 @@ class ThemeCard(Gtk.Box):
         self.set_margin_start(12)
         self.set_margin_end(12)
 
-        # Theme Preview (Icon or Image)
         preview_widget = self._create_theme_preview(theme_data)
         self.append(preview_widget)
 
-        # Label
         label = Gtk.Label(label=theme_data["name"])
         label.set_css_classes(["heading"])
         self.append(label)
 
-        # Apply Button
         button = Gtk.Button(label="Apply")
         button.add_css_class("suggested-action")
         button.connect("clicked", lambda x: apply_callback(theme_data["id"]))
@@ -232,7 +254,6 @@ class ThemeCard(Gtk.Box):
         preview_path = theme_data.get("preview")
         if preview_path and os.path.exists(preview_path):
             try:
-                # Use Gtk.Picture for file-based previews (better for photos/screenshots)
                 picture = Gtk.Picture.new_for_filename(preview_path)
                 picture.set_content_fit(Gtk.ContentFit.CONTAIN)
                 picture.set_size_request(64, 64)
@@ -240,7 +261,6 @@ class ThemeCard(Gtk.Box):
             except Exception as e:
                 print(f"Error loading preview for {theme_data['name']}: {e}")
 
-        # Fallback to Icon
         icon_name = theme_data.get("icon", "image-missing")
         icon = Gtk.Image.new_from_icon_name(icon_name)
         icon.set_pixel_size(64)
