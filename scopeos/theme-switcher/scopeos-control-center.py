@@ -47,7 +47,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
             {"id": "macos", "name": "MacOS Like", "icon": "user-desktop"},
             {"id": "win10", "name": "Windows 10", "icon": "desktop-profiler"},
             {"id": "win11", "name": "Windows 11", "icon": "computer"},
-            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "ubuntu-logo-icon"}, # specific icon might need replacement
+            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "distributor-logo"},
             {"id": "gnome", "name": "Pure GNOME", "icon": "gnome-logo-icon"},
         ]
 
