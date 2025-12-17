@@ -13,11 +13,13 @@ echo "=== Starting ScopeOS System Preparation ==="
 export DEBIAN_FRONTEND=noninteractive
 
 # 0. System Updates
+echo "Updating system..."
 apt-get update
 apt-get upgrade -y
 
 # 1. Install Dependencies
-# Combined installation for optimization
+# Combined installation for optimization and added dconf-cli
+echo "Installing dependencies..."
 apt-get install -y \
     calamares \
     calamares-settings-ubuntu-common \
@@ -30,23 +32,38 @@ apt-get install -y \
     gnome-shell-extension-manager \
     gnome-shell-extensions \
     gpg \
+    dconf-cli \
     software-properties-common
 
 # 2. Setup Directory & Repositories (for Netinstall apps)
 echo "Adding third-party repositories..."
 mkdir -p /etc/apt/keyrings
 
+# Helper function for adding repo keys securely
+add_repo_key() {
+    local url="$1"
+    local keyring="$2"
+    # Although we don't have hardcoded checksums (urls change), we ensure pipe safety
+    curl -fsSL "$url" | gpg --dearmor -o "$keyring"
+}
+
 # Google Chrome
-curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list
+if [ ! -f /etc/apt/keyrings/google-chrome.gpg ]; then
+    add_repo_key "https://dl.google.com/linux/linux_signing_key.pub" "/etc/apt/keyrings/google-chrome.gpg"
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | tee /etc/apt/sources.list.d/google-chrome.list
+fi
 
 # VS Code
-curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/packages.microsoft.gpg
-echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list
+if [ ! -f /etc/apt/keyrings/packages.microsoft.gpg ]; then
+    add_repo_key "https://packages.microsoft.com/keys/microsoft.asc" "/etc/apt/keyrings/packages.microsoft.gpg"
+    echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list
+fi
 
 # Spotify
-curl -sS https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg | gpg --dearmor --yes -o /etc/apt/keyrings/spotify.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | tee /etc/apt/sources.list.d/spotify.list
+if [ ! -f /etc/apt/keyrings/spotify.gpg ]; then
+    add_repo_key "https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg" "/etc/apt/keyrings/spotify.gpg"
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | tee /etc/apt/sources.list.d/spotify.list
+fi
 
 # Update to ensuring lists are valid
 apt-get update
@@ -81,14 +98,22 @@ EOF
 # 5. Configure Calamares
 echo "Configuring Calamares..."
 # Copy main configs to /etc/calamares
-cp -r "$SCOPEOS_DIR/calamares-config/settings.conf" /etc/calamares/
-cp -r "$SCOPEOS_DIR/calamares-config/modules" /etc/calamares/
+if [ -d "$SCOPEOS_DIR/calamares-config" ]; then
+    cp -r "$SCOPEOS_DIR/calamares-config/settings.conf" /etc/calamares/
+    cp -r "$SCOPEOS_DIR/calamares-config/modules" /etc/calamares/
+else
+    echo "Warning: Calamares config not found."
+fi
 
 # Configure Branding
 # Calamares expects branding in /usr/share/calamares/branding/<brand_name>
 mkdir -p /usr/share/calamares/branding/scopeos
-cp "$SCOPEOS_DIR/calamares-config/branding.desc" /usr/share/calamares/branding/scopeos/
-cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/calamares/branding/scopeos/
+if [ -f "$SCOPEOS_DIR/calamares-config/branding.desc" ]; then
+    cp "$SCOPEOS_DIR/calamares-config/branding.desc" /usr/share/calamares/branding/scopeos/
+fi
+if [ -f "$SCOPEOS_DIR/assets/scopeos-logo.png" ]; then
+    cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/calamares/branding/scopeos/
+fi
 
 # 6. Privacy Cleanup
 if [ -f "$SCOPEOS_DIR/scripts/privacy_cleanup.sh" ]; then
@@ -118,7 +143,12 @@ picture-uri='file:///usr/share/backgrounds/macos-wallpaper.jpg'
 picture-uri-dark='file:///usr/share/backgrounds/macos-wallpaper.jpg'
 EOF
 
-dconf update
+# Update dconf if possible, warn otherwise
+if command -v dconf >/dev/null; then
+    dconf update
+else
+    echo "Warning: dconf not found, skipping schema update."
+fi
 
 # 8. Clean up
 apt-get autoremove -y
