@@ -44,7 +44,7 @@ add_repo_key() {
     local url="$1"
     local keyring="$2"
     # Although we don't have hardcoded checksums (urls change), we ensure pipe safety
-    curl -fsSL "$url" | gpg --dearmor -o "$keyring"
+    curl -fsSL "$url" | gpg --dearmor --yes -o "$keyring"
 }
 
 # Google Chrome
@@ -61,7 +61,7 @@ fi
 
 # Spotify
 if [ ! -f /etc/apt/keyrings/spotify.gpg ]; then
-    add_repo_key "https://download.spotify.com/debian/pubkey_6224F9941A8AA6D1.gpg" "/etc/apt/keyrings/spotify.gpg"
+    add_repo_key "https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg" "/etc/apt/keyrings/spotify.gpg"
     echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | tee /etc/apt/sources.list.d/spotify.list
 fi
 
