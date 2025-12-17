@@ -1,25 +1,40 @@
 #!/usr/bin/env python3
+"""
+ScopeOS Control Center
+A GTK4 + Libadwaita application for managing themes and settings in ScopeOS.
+"""
+
 import sys
 import os
 import subprocess
 import threading
+from typing import List, Dict, Any
 
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GLib
 
+
 class ScopeOSControlCenter(Adw.Application):
+    """
+    Main Application class for ScopeOS Control Center.
+    """
     def __init__(self, **kwargs):
         super().__init__(application_id='com.scopeos.controlcenter',
                          flags=Gio.ApplicationFlags.FLAGS_NONE,
                          **kwargs)
 
     def do_activate(self):
+        """Activates the application window."""
         win = ScopeOSWindow(application=self)
         win.present()
 
+
 class ScopeOSWindow(Adw.PreferencesWindow):
+    """
+    The main window containing settings and theme selection.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_title("ScopeOS Control Center")
@@ -73,31 +88,33 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         dark_mode_row.add_suffix(switch)
         dark_mode_group.add(dark_mode_row)
 
-        # Spinner for busy state
-        self.spinner = Gtk.Spinner()
-        self.spinner.set_size_request(32, 32)
-        # We can add this to the headerbar or show a toast/overlay.
-        # For simplicity, we might just use it in a toast or dialog, but here I'll leave it
-        # as a potential future improvement or add it to the window content if needed.
-        # Instead of a spinner, we'll rely on the Toast to show "Applying..."
-
-    def is_dark_mode(self):
+    def is_dark_mode(self) -> bool:
+        """Checks if dark mode is currently enabled via gsettings."""
         try:
             result = subprocess.check_output(
                 ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
                 text=True
             ).strip()
             return "dark" in result
-        except Exception:
+        except subprocess.SubprocessError:
             return False
 
-    def toggle_dark_mode(self, switch, state):
+    def toggle_dark_mode(self, _switch: Gtk.Switch, state: bool) -> bool:
+        """Toggles the system dark mode."""
         scheme = "prefer-dark" if state else "default"
         print(f"Setting color scheme to: {scheme}")
-        subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", f"'{scheme}'"])
+        try:
+            subprocess.run(
+                ["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", f"'{scheme}'"],
+                check=True
+            )
+        except subprocess.SubprocessError as e:
+            print(f"Failed to toggle dark mode: {e}")
+            # In a real app, we might want to revert the switch state here
         return True
 
-    def is_extension_installed(self, extension_id):
+    def is_extension_installed(self, extension_id: str) -> bool:
+        """Checks if a GNOME extension is installed."""
         try:
             subprocess.run(
                 ["gnome-extensions", "info", extension_id],
@@ -109,7 +126,8 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
-    def set_extension_state(self, extension_id, enable):
+    def set_extension_state(self, extension_id: str, enable: bool):
+        """Enables or disables a GNOME extension."""
         if not self.is_extension_installed(extension_id):
             print(f"Extension {extension_id} is not installed.")
             return
@@ -118,10 +136,11 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         print(f"{action.capitalize()}ing {extension_id}...")
         try:
             subprocess.run(["gnome-extensions", action, extension_id], check=True)
-        except Exception as e:
+        except subprocess.SubprocessError as e:
             print(f"Error {action}ing extension {extension_id}: {e}")
 
-    def on_apply_theme_clicked(self, theme_id):
+    def on_apply_theme_clicked(self, theme_id: str):
+        """Handler for theme selection."""
         # Show feedback immediately
         self.add_toast(Adw.Toast.new(f"Applying theme {theme_id}..."))
 
@@ -130,17 +149,19 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         thread.daemon = True
         thread.start()
 
-    def apply_theme_thread(self, theme_id):
+    def apply_theme_thread(self, theme_id: str):
+        """Worker thread for applying the theme."""
         try:
             self.perform_theme_change(theme_id)
             GLib.idle_add(self.on_theme_applied_success, theme_id)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             GLib.idle_add(self.on_theme_applied_error, str(e))
 
-    def perform_theme_change(self, theme_id):
+    def perform_theme_change(self, theme_id: str):
+        """Executes the necessary commands to change the theme."""
         print(f"Applying theme: {theme_id}")
 
-        theme_configs = {
+        theme_configs: Dict[str, Any] = {
             "macos": {
                 "gtk": "WhiteSur-Light",
                 "icon": "WhiteSur",
@@ -191,13 +212,18 @@ class ScopeOSWindow(Adw.PreferencesWindow):
             ["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", config["gtk"]],
             ["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", config["icon"]],
             ["gsettings", "set", "org.gnome.shell.extensions.user-theme", "name", config["shell"]],
-            ["gsettings", "set", "org.gnome.desktop.background", "picture-uri", f"file://{config['wallpaper']}"],
-            ["gsettings", "set", "org.gnome.desktop.background", "picture-uri-dark", f"file://{config['wallpaper']}"]
+            ["gsettings", "set", "org.gnome.desktop.background", "picture-uri",
+             f"file://{config['wallpaper']}"],
+            ["gsettings", "set", "org.gnome.desktop.background", "picture-uri-dark",
+             f"file://{config['wallpaper']}"]
         ]
 
         for cmd in commands:
             print(f"Executing: {' '.join(cmd)}")
-            subprocess.run(cmd, check=False)
+            try:
+                subprocess.run(cmd, check=True)
+            except subprocess.SubprocessError as e:
+                print(f"Warning: Command failed: {e}")
 
         dash_to_dock_id = "dash-to-dock@micxgx.gmail.com"
         dash_to_panel_id = "dash-to-panel@jderose9.github.com"
@@ -212,7 +238,8 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         else:
             self.set_extension_state(dash_to_panel_id, False)
 
-    def on_theme_applied_success(self, theme_id):
+    def on_theme_applied_success(self, theme_id: str):
+        """Displays success message."""
         dialog = Adw.MessageDialog(
             heading="Theme Applied",
             body=f"Successfully switched to {theme_id} theme.",
@@ -221,7 +248,8 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         dialog.set_transient_for(self)
         dialog.present()
 
-    def on_theme_applied_error(self, error_msg):
+    def on_theme_applied_error(self, error_msg: str):
+        """Displays error message."""
         dialog = Adw.MessageDialog(
             heading="Error Applying Theme",
             body=f"An error occurred: {error_msg}",
@@ -230,8 +258,12 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         dialog.set_transient_for(self)
         dialog.present()
 
+
 class ThemeCard(Gtk.Box):
-    def __init__(self, theme_data, apply_callback):
+    """
+    A widget representing a selectable theme.
+    """
+    def __init__(self, theme_data: Dict[str, str], apply_callback):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.set_margin_top(12)
         self.set_margin_bottom(12)
@@ -250,7 +282,8 @@ class ThemeCard(Gtk.Box):
         button.connect("clicked", lambda x: apply_callback(theme_data["id"]))
         self.append(button)
 
-    def _create_theme_preview(self, theme_data):
+    def _create_theme_preview(self, theme_data: Dict[str, str]) -> Gtk.Widget:
+        """Creates the preview image for the theme."""
         preview_path = theme_data.get("preview")
         if preview_path and os.path.exists(preview_path):
             try:
@@ -258,13 +291,14 @@ class ThemeCard(Gtk.Box):
                 picture.set_content_fit(Gtk.ContentFit.CONTAIN)
                 picture.set_size_request(64, 64)
                 return picture
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 print(f"Error loading preview for {theme_data['name']}: {e}")
 
         icon_name = theme_data.get("icon", "image-missing")
         icon = Gtk.Image.new_from_icon_name(icon_name)
         icon.set_pixel_size(64)
         return icon
+
 
 if __name__ == "__main__":
     app = ScopeOSControlCenter()

@@ -27,12 +27,17 @@ install_git_theme() {
     # Ensure cleanup happens even if something fails
     trap 'rm -rf "$TEMP_DIR"' RETURN
 
-    git clone --depth 1 "$REPO_URL" "$TEMP_DIR"
-
-    pushd "$TEMP_DIR" > /dev/null
-    # Execute the command in the temporary directory
-    bash -c "$INSTALL_CMD"
-    popd > /dev/null
+    if git clone --depth 1 "$REPO_URL" "$TEMP_DIR"; then
+        pushd "$TEMP_DIR" > /dev/null
+        # Execute the command in the temporary directory
+        # We rely on the hardcoded INSTALL_CMD being safe.
+        # Ideally, we would inspect the install script, but that's complex for automation.
+        bash -c "$INSTALL_CMD"
+        popd > /dev/null
+    else
+        echo "Error: Failed to clone $REPO_URL" >&2
+        return 1
+    fi
 }
 
 # 1. MacOS Theme (WhiteSur)
@@ -42,8 +47,6 @@ install_git_theme "https://github.com/vinceliuice/WhiteSur-icon-theme.git" "Whit
 
 # 2. Windows 10 Theme
 echo "Installing Windows 10 Theme..."
-# Use glob expansion inside the bash -c call
-# Note: B00merang themes are usually flat in the repo, so we move everything to the target dir
 install_git_theme "https://github.com/B00merang-Project/Windows-10.git" "Windows-10" "mkdir -p \"$THEMES_DIR/Windows-10\" && mv * \"$THEMES_DIR/Windows-10/\""
 install_git_theme "https://github.com/B00merang-Project/Windows-10-Icons.git" "Windows-10-Icons" "mkdir -p \"$ICONS_DIR/Windows-10\" && mv * \"$ICONS_DIR/Windows-10/\""
 
@@ -59,7 +62,8 @@ echo "Downloading Wallpapers..."
 download_file() {
     local URL="$1"
     local DEST="$2"
-    if curl -L -o "$DEST" "$URL"; then
+    # Use -f to fail on 404/server errors
+    if curl -fsSL -o "$DEST" "$URL"; then
         echo "Downloaded $DEST"
     else
         echo "Failed to download $URL" >&2
@@ -67,9 +71,18 @@ download_file() {
     fi
 }
 
-download_file "https://raw.githubusercontent.com/vinceliuice/WhiteSur-wallpapers/main/4k/Monterey-light.jpg" "$BACKGROUNDS_DIR/macos-wallpaper.jpg"
-download_file "https://upload.wikimedia.org/wikipedia/en/c/c2/Windows_10_Hero_Wallpaper_2020.png" "$BACKGROUNDS_DIR/win10-wallpaper.jpg"
-download_file "https://upload.wikimedia.org/wikipedia/commons/e/ec/Windows_11_Bloom_Wallpaper_Light.jpg" "$BACKGROUNDS_DIR/win11-wallpaper.jpg"
+# Run downloads in parallel? For simplicity and reliability in chroot, serial is safer,
+# but we can background them and wait.
+pids=""
+download_file "https://raw.githubusercontent.com/vinceliuice/WhiteSur-wallpapers/main/4k/Monterey-light.jpg" "$BACKGROUNDS_DIR/macos-wallpaper.jpg" &
+pids="$pids $!"
+download_file "https://upload.wikimedia.org/wikipedia/en/c/c2/Windows_10_Hero_Wallpaper_2020.png" "$BACKGROUNDS_DIR/win10-wallpaper.jpg" &
+pids="$pids $!"
+download_file "https://upload.wikimedia.org/wikipedia/commons/e/ec/Windows_11_Bloom_Wallpaper_Light.jpg" "$BACKGROUNDS_DIR/win11-wallpaper.jpg" &
+pids="$pids $!"
+
+# Wait for all downloads
+wait $pids
 
 # Fallback for Ubuntu wallpaper
 if [ -f "/usr/share/backgrounds/warty-final-ubuntu.png" ]; then
