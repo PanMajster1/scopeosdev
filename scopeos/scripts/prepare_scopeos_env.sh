@@ -12,6 +12,18 @@ echo "=== Starting ScopeOS System Preparation ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
+# Helper function to remove packages only if they are installed
+remove_if_installed() {
+    local pkg="$1"
+    # Check if package is installed (status 'ii')
+    if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+        echo "Removing $pkg..."
+        apt-get purge -y "$pkg"
+    else
+        echo "Package $pkg not installed, skipping."
+    fi
+}
+
 # 0. System Updates
 echo "Updating system..."
 apt-get update
@@ -19,11 +31,45 @@ apt-get upgrade -y
 
 # 0.1 Remove Ubuntu Installers
 echo "Removing Ubuntu Installers..."
-apt-get purge -y ubiquity* ubuntu-desktop-installer
+remove_if_installed "ubiquity*"
+remove_if_installed "ubuntu-desktop-installer"
+remove_if_installed "ubuntu-desktop-bootstrap"
 
 # 1. Install Dependencies
+echo "Installing initial dependencies and enabling universe..."
+# Install software-properties-common to get add-apt-repository
+apt-get install -y software-properties-common
+
+# Manually enable universe repo if add-apt-repository fails or isn't enough in chroot
+# Handle Ubuntu 24.04 DEB822 format (ubuntu.sources)
+if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+    echo "Checking ubuntu.sources for universe..."
+    if ! grep -q "universe" /etc/apt/sources.list.d/ubuntu.sources; then
+        echo "Manually enabling universe repository in ubuntu.sources..."
+        # Append universe to the Components line if missing
+        sed -i 's/Components: main restricted/Components: main restricted universe/g' /etc/apt/sources.list.d/ubuntu.sources
+    fi
+fi
+
+# Handle legacy sources.list format
+if [ -f /etc/apt/sources.list ] && ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
+    # Only edit if it looks like a valid sources file (has deb lines)
+    if grep -q "^deb " /etc/apt/sources.list; then
+        echo "Manually enabling universe repository in sources.list..."
+        sed -i 's/main restricted/main restricted universe/g' /etc/apt/sources.list
+    fi
+fi
+
+# Also try standard command to be safe (it might handle other quirks)
+add-apt-repository universe -y || true
+
+# Force refresh of apt cache to ensure universe packages are seen
+echo "Cleaning apt lists and updating..."
+rm -rf /var/lib/apt/lists/*
+apt-get update
+
 # Combined installation for optimization and added dconf-cli
-echo "Installing dependencies..."
+echo "Installing main dependencies..."
 apt-get install -y \
     calamares \
     calamares-settings-ubuntu-common \
@@ -38,8 +84,7 @@ apt-get install -y \
     gnome-shell-extension-dash-to-dock \
     gnome-shell-extension-dash-to-panel \
     gpg \
-    dconf-cli \
-    software-properties-common
+    dconf-cli
 
 # 2. Setup Directory & Repositories (for Netinstall apps)
 echo "Adding third-party repositories..."
