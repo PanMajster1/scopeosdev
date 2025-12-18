@@ -36,8 +36,22 @@ remove_if_installed "ubuntu-desktop-installer"
 remove_if_installed "ubuntu-desktop-bootstrap"
 
 # 1. Install Dependencies
+echo "Installing initial dependencies and enabling universe..."
+# Install software-properties-common to get add-apt-repository
+apt-get install -y software-properties-common
+
+# Manually enable universe repo if add-apt-repository fails or isn't enough in chroot
+if ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
+    echo "Manually enabling universe repository..."
+    sed -i 's/main restricted/main restricted universe/g' /etc/apt/sources.list
+fi
+# Also try standard command to be safe
+add-apt-repository universe -y || true
+
+apt-get update
+
 # Combined installation for optimization and added dconf-cli
-echo "Installing dependencies..."
+echo "Installing main dependencies..."
 apt-get install -y \
     calamares \
     calamares-settings-ubuntu-common \
@@ -52,8 +66,7 @@ apt-get install -y \
     gnome-shell-extension-dash-to-dock \
     gnome-shell-extension-dash-to-panel \
     gpg \
-    dconf-cli \
-    software-properties-common
+    dconf-cli
 
 # 2. Setup Directory & Repositories (for Netinstall apps)
 echo "Adding third-party repositories..."
