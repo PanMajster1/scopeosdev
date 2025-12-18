@@ -63,6 +63,9 @@ fi
 # Also try standard command to be safe (it might handle other quirks)
 add-apt-repository universe -y || true
 
+# Force refresh of apt cache to ensure universe packages are seen
+echo "Cleaning apt lists and updating..."
+rm -rf /var/lib/apt/lists/*
 apt-get update
 
 # Combined installation for optimization and added dconf-cli
