@@ -47,8 +47,8 @@ install_git_theme "https://github.com/vinceliuice/WhiteSur-icon-theme.git" "Whit
 
 # 2. Windows 10 Theme
 echo "Installing Windows 10 Theme..."
-install_git_theme "https://github.com/B00merang-Project/Windows-10.git" "Windows-10" "mkdir -p \"$THEMES_DIR/Windows-10\" && mv * \"$THEMES_DIR/Windows-10/\""
-install_git_theme "https://github.com/B00merang-Project/Windows-10-Icons.git" "Windows-10-Icons" "mkdir -p \"$ICONS_DIR/Windows-10\" && mv * \"$ICONS_DIR/Windows-10/\""
+install_git_theme "https://github.com/B00merang-Project/Windows-10.git" "Windows-10" "rm -rf \"$THEMES_DIR/Windows-10\" && mkdir -p \"$THEMES_DIR/Windows-10\" && mv * \"$THEMES_DIR/Windows-10/\""
+install_git_theme "https://github.com/B00merang-Project/Windows-10-Icons.git" "Windows-10-Icons" "rm -rf \"$ICONS_DIR/Windows-10\" && mkdir -p \"$ICONS_DIR/Windows-10\" && mv * \"$ICONS_DIR/Windows-10/\""
 
 # 3. Windows 11 Theme
 echo "Installing Windows 11 Theme..."
@@ -76,9 +76,9 @@ download_file() {
 pids=""
 download_file "https://raw.githubusercontent.com/vinceliuice/WhiteSur-wallpapers/main/4k/Monterey-light.jpg" "$BACKGROUNDS_DIR/macos-wallpaper.jpg" &
 pids="$pids $!"
-download_file "https://upload.wikimedia.org/wikipedia/en/c/c2/Windows_10_Hero_Wallpaper_2020.png" "$BACKGROUNDS_DIR/win10-wallpaper.jpg" &
+download_file "https://wallpapercave.com/download/windows-10-hero-wallpapers-wp4439149" "$BACKGROUNDS_DIR/win10-wallpaper.jpg" &
 pids="$pids $!"
-download_file "https://upload.wikimedia.org/wikipedia/commons/e/ec/Windows_11_Bloom_Wallpaper_Light.jpg" "$BACKGROUNDS_DIR/win11-wallpaper.jpg" &
+download_file "https://4kwallpapers.com/images/wallpapers/windows-11-blue-stock-white-background-light-official-3840x2160-5616.jpg" "$BACKGROUNDS_DIR/win11-wallpaper.jpg" &
 pids="$pids $!"
 
 # Wait for all downloads
