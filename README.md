@@ -26,7 +26,7 @@ ScopeOS is a custom Ubuntu 24.04-based distribution featuring a theme switcher (
     - Alternatively, install git inside Cubic and clone this repo:
       ```bash
       apt update && apt install git
-      git clone https://github.com/your-repo/scopeos.git /opt/scopeos
+      git clone https://github.com/PanMajster1/scopeosdev.git /opt
       ```
 
 3.  **Run the Preparation Script:**
