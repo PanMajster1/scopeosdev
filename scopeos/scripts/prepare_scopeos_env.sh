@@ -12,6 +12,18 @@ echo "=== Starting ScopeOS System Preparation ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
+# Helper function to remove packages only if they are installed
+remove_if_installed() {
+    local pkg="$1"
+    # Check if package is installed (status 'ii')
+    if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+        echo "Removing $pkg..."
+        apt-get purge -y "$pkg"
+    else
+        echo "Package $pkg not installed, skipping."
+    fi
+}
+
 # 0. System Updates
 echo "Updating system..."
 apt-get update
@@ -19,7 +31,9 @@ apt-get upgrade -y
 
 # 0.1 Remove Ubuntu Installers
 echo "Removing Ubuntu Installers..."
-apt-get purge -y ubiquity* ubuntu-desktop-installer
+remove_if_installed "ubiquity*"
+remove_if_installed "ubuntu-desktop-installer"
+remove_if_installed "ubuntu-desktop-bootstrap"
 
 # 1. Install Dependencies
 # Combined installation for optimization and added dconf-cli
