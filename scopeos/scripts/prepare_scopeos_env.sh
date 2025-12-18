@@ -17,6 +17,15 @@ echo "Updating system..."
 apt-get update
 apt-get upgrade -y
 
+# 0.1 Remove Ubuntu Installers
+echo "Removing Ubuntu Installers..."
+# Try removing ubiquity and related packages
+apt-get purge -y ubiquity* || true
+# Try removing the new flutter installer if it exists
+apt-get purge -y ubuntu-desktop-installer || true
+# Remove the ubuntu-desktop-bootstrap if it exists (another name for the new installer)
+apt-get purge -y ubuntu-desktop-bootstrap || true
+
 # 1. Install Dependencies
 # Combined installation for optimization and added dconf-cli
 echo "Installing dependencies..."
@@ -78,12 +87,14 @@ else
     exit 1
 fi
 
-# 4. Install Theme Switcher App
-echo "Installing Control Center..."
+# 4. Install Apps (Theme Switcher & Welcome)
+echo "Installing Control Center and Welcome App..."
 cp "$SCOPEOS_DIR/theme-switcher/scopeos-control-center.py" /usr/local/bin/scopeos-control-center
+cp "$SCOPEOS_DIR/scripts/scopeos-welcome.py" /usr/local/bin/scopeos-welcome
 chmod +x /usr/local/bin/scopeos-control-center
+chmod +x /usr/local/bin/scopeos-welcome
 
-# Create Desktop Entry
+# Create Desktop Entry for Control Center
 cat <<EOF > /usr/share/applications/scopeos-control-center.desktop
 [Desktop Entry]
 Name=ScopeOS Control Center
@@ -94,6 +105,37 @@ Terminal=false
 Type=Application
 Categories=Settings;
 EOF
+
+# Create Desktop Entry for Welcome App (Autostart)
+mkdir -p /etc/xdg/autostart
+cat <<EOF > /etc/xdg/autostart/scopeos-welcome.desktop
+[Desktop Entry]
+Name=Welcome to ScopeOS
+Comment=Welcome to ScopeOS
+Exec=scopeos-welcome
+Icon=system-help
+Terminal=false
+Type=Application
+Categories=Utility;
+X-GNOME-Autostart-enabled=true
+EOF
+
+# Create Desktop Entry for Installer
+cat <<EOF > /usr/share/applications/install-scopeos.desktop
+[Desktop Entry]
+Name=Install ScopeOS
+Comment=Install ScopeOS to your drive
+Exec=pkexec calamares
+Icon=/opt/scopeos/assets/scopeos-logo.png
+Terminal=false
+Type=Application
+Categories=System;
+EOF
+
+# Copy Installer Shortcut to Skeleton Desktop (for new users/live user)
+mkdir -p /etc/skel/Desktop
+cp /usr/share/applications/install-scopeos.desktop /etc/skel/Desktop/
+chmod +x /etc/skel/Desktop/install-scopeos.desktop
 
 # 5. Configure Calamares
 echo "Configuring Calamares..."
@@ -122,8 +164,26 @@ else
     echo "Warning: Privacy cleanup script not found."
 fi
 
-# 7. Set Default Wallpaper and Theme (MacOS Like)
+# 7. Set Default Wallpaper, Theme, and Boot Logo
 echo "Setting defaults..."
+
+# Boot Logo (Plymouth)
+if [ -f "$SCOPEOS_DIR/assets/scopeos-logo.png" ]; then
+    echo "Updating Plymouth Boot Logo..."
+    # Replace default spinner watermark and fallback
+    if [ -d "/usr/share/plymouth/themes/spinner" ]; then
+        cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/spinner/watermark.png
+        cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/spinner/bgrt-fallback.png
+    fi
+    # Also attempt to replace ubuntu-logo theme assets if present
+    if [ -d "/usr/share/plymouth/themes/ubuntu-logo" ]; then
+        cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.png
+        cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo16.png
+    fi
+    # Update initramfs to apply changes
+    update-initramfs -u
+fi
+
 mkdir -p /etc/dconf/db/local.d/
 cat <<EOF > /etc/dconf/db/local.d/10-scopeos-theme
 [org/gnome/desktop/interface]
