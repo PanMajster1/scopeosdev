@@ -19,12 +19,23 @@ apt-get upgrade -y
 
 # 0.1 Remove Ubuntu Installers
 echo "Removing Ubuntu Installers..."
+
+# Function to remove package only if installed
+remove_if_installed() {
+    if dpkg -l "$1" >/dev/null 2>&1; then
+        echo "Removing $1..."
+        apt-get purge -y "$1" || true
+    else
+        echo "Package $1 not found, skipping removal."
+    fi
+}
+
 # Try removing ubiquity and related packages
-apt-get purge -y ubiquity* || true
+remove_if_installed "ubiquity*"
 # Try removing the new flutter installer if it exists
-apt-get purge -y ubuntu-desktop-installer || true
-# Remove the ubuntu-desktop-bootstrap if it exists (another name for the new installer)
-apt-get purge -y ubuntu-desktop-bootstrap || true
+remove_if_installed "ubuntu-desktop-installer"
+# Remove the ubuntu-desktop-bootstrap if it exists
+remove_if_installed "ubuntu-desktop-bootstrap"
 
 # 1. Install Dependencies
 # Combined installation for optimization and added dconf-cli
