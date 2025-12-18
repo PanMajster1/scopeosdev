@@ -31,6 +31,8 @@ apt-get install -y \
     curl \
     gnome-shell-extension-manager \
     gnome-shell-extensions \
+    gnome-shell-extension-dash-to-dock \
+    gnome-shell-extension-dash-to-panel \
     gpg \
     dconf-cli \
     software-properties-common

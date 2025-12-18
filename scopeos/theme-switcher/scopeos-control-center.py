@@ -227,6 +227,10 @@ class ScopeOSWindow(Adw.PreferencesWindow):
 
         dash_to_dock_id = "dash-to-dock@micxgx.gmail.com"
         dash_to_panel_id = "dash-to-panel@jderose9.github.com"
+        ubuntu_dock_id = "ubuntu-dock@ubuntu.com"
+
+        # Always disable Ubuntu Dock to prevent conflicts
+        self.set_extension_state(ubuntu_dock_id, False)
 
         if config.get("dock"):
             self.set_extension_state(dash_to_dock_id, True)
