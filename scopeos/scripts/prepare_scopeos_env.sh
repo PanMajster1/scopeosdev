@@ -39,7 +39,15 @@ remove_if_installed "ubuntu-desktop-bootstrap"
 echo "Installing initial dependencies and enabling universe..."
 # Install software-properties-common to get add-apt-repository
 apt-get install -y software-properties-common
-add-apt-repository universe -y
+
+# Manually enable universe repo if add-apt-repository fails or isn't enough in chroot
+if ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
+    echo "Manually enabling universe repository..."
+    sed -i 's/main restricted/main restricted universe/g' /etc/apt/sources.list
+fi
+# Also try standard command to be safe
+add-apt-repository universe -y || true
+
 apt-get update
 
 # Combined installation for optimization and added dconf-cli
