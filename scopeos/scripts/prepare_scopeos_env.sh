@@ -232,14 +232,11 @@ cat <<EOF > /etc/dconf/db/local.d/10-scopeos-theme
 gtk-theme='WhiteSur-Light'
 icon-theme='WhiteSur'
 color-scheme='prefer-light'
-
 # Enable User Themes Extension
 [org/gnome/shell]
 enabled-extensions=['user-theme@gnome-shell-extensions.gcampax.github.com', 'ubuntu-dock@ubuntu.com', 'ding@rastersoft.com']
-
 [org/gnome/shell/extensions/user-theme]
 name='WhiteSur-Light'
-
 [org/gnome/desktop/background]
 picture-uri='file:///usr/share/backgrounds/macos-wallpaper.jpg'
 picture-uri-dark='file:///usr/share/backgrounds/macos-wallpaper.jpg'
