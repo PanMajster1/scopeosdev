@@ -8,7 +8,7 @@ import sys
 import os
 import subprocess
 import threading
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -110,20 +110,21 @@ class ScopeOSWindow(Adw.PreferencesWindow):
             )
         except subprocess.SubprocessError as e:
             print(f"Failed to toggle dark mode: {e}")
-            # In a real app, we might want to revert the switch state here
+            self.add_toast(Adw.Toast.new(f"Failed to toggle dark mode: {e}"))
+            return True # Keep switch state visually consistent even if failed, or handle revert
         return True
 
     def is_extension_installed(self, extension_id: str) -> bool:
         """Checks if a GNOME extension is installed."""
         try:
-            subprocess.run(
+            result = subprocess.run(
                 ["gnome-extensions", "info", extension_id],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                capture_output=True,
+                text=True
             )
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
+            return result.returncode == 0
+        except FileNotFoundError:
+            # gnome-extensions command not found
             return False
 
     def set_extension_state(self, extension_id: str, enable: bool):
@@ -208,6 +209,15 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         if not config:
             raise ValueError("Unknown theme ID")
 
+        # Validation: Check if wallpaper exists
+        if config["wallpaper"] and not os.path.exists(config["wallpaper"]):
+             print(f"Warning: Wallpaper {config['wallpaper']} not found.")
+
+        # Validation: Check if themes are installed (roughly)
+        # We can't easily check 'gsettings' valid values without parsing 'gsettings range',
+        # but we can assume if the user ran the install script, they are there.
+        # Ideally, we should check /usr/share/themes or ~/.themes
+
         commands = [
             ["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", config["gtk"]],
             ["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", config["icon"]],
@@ -224,6 +234,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 subprocess.run(cmd, check=True)
             except subprocess.SubprocessError as e:
                 print(f"Warning: Command failed: {e}")
+                # We don't raise here to allow partial application
 
         dash_to_dock_id = "dash-to-dock@micxgx.gmail.com"
         dash_to_panel_id = "dash-to-panel@jderose9.github.com"
