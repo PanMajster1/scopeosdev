@@ -4,9 +4,14 @@ set -euo pipefail
 # Master Script to Prepare ScopeOS Environment
 # This script is intended to be run INSIDE the chroot of the ISO builder (e.g., Cubic terminal).
 
+# Check for root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: This script must be run as root." >&2
+    exit 1
+fi
+
 # Variables
 SCOPEOS_DIR="/opt/scopeos"
-# REPO_URL="https://github.com/PanMajster1/scopeosdev.git" # Unused in this context if we assume local copy
 
 echo "=== Starting ScopeOS System Preparation ==="
 
@@ -24,61 +29,47 @@ remove_if_installed() {
     fi
 }
 
-# 0. System Updates
-echo "Updating system..."
-apt-get update
-apt-get upgrade -y
-
-# 0.1 Remove Ubuntu Installers
-echo "Removing Ubuntu Installers..."
-remove_if_installed "ubiquity*"
-remove_if_installed "ubuntu-desktop-installer"
-remove_if_installed "ubuntu-desktop-bootstrap"
-
-# 1. Install Dependencies
-echo "Installing initial dependencies and enabling universe..."
-# Install software-properties-common to get add-apt-repository
-apt-get install -y software-properties-common
-
-# Manually enable universe repo if add-apt-repository fails or isn't enough in chroot
-if ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
-    echo "Manually enabling universe repository..."
-    sed -i 's/main restricted/main restricted universe/g' /etc/apt/sources.list
-fi
-# Also try standard command to be safe
-add-apt-repository universe -y || true
-
-apt-get update
-
-# Combined installation for optimization and added dconf-cli
-echo "Installing main dependencies..."
-apt-get install -y \
-    calamares \
-    calamares-settings-ubuntu-common \
-    python3-gi \
-    python3-gi-cairo \
-    gir1.2-gtk-4.0 \
-    gir1.2-adw-1 \
-    git \
-    curl \
-    gnome-shell-extension-manager \
-    gnome-shell-extensions \
-    gnome-shell-extension-dash-to-dock \
-    gnome-shell-extension-dash-to-panel \
-    gpg \
-    dconf-cli
-
-# 2. Setup Directory & Repositories (for Netinstall apps)
-echo "Adding third-party repositories..."
-mkdir -p /etc/apt/keyrings
-
 # Helper function for adding repo keys securely
 add_repo_key() {
     local url="$1"
     local keyring="$2"
-    # Although we don't have hardcoded checksums (urls change), we ensure pipe safety
+    # Ensure curl and gpg are available
+    if ! command -v curl >/dev/null || ! command -v gpg >/dev/null; then
+        echo "Error: curl or gpg not found in add_repo_key." >&2
+        return 1
+    fi
+    # Download key
     curl -fsSL "$url" | gpg --dearmor --yes -o "$keyring"
 }
+
+# 1. Initial Update and Essential Dependencies
+echo "Installing initial dependencies..."
+apt-get update
+# Install essentials needed for adding repositories
+apt-get install -y software-properties-common curl gpg
+
+# 2. Configure Repositories
+echo "Configuring repositories..."
+
+# Enable Universe
+# Manually enable universe repo if add-apt-repository fails or isn't enough in chroot
+if ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
+    echo "Manually enabling universe repository..."
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+        # Handle DEB822 format if present (Ubuntu 24.04+)
+        if ! grep -q "universe" /etc/apt/sources.list.d/ubuntu.sources; then
+             sed -i 's/Components: main restricted/Components: main restricted universe/g' /etc/apt/sources.list.d/ubuntu.sources
+        fi
+    else
+        sed -i 's/main restricted/main restricted universe/g' /etc/apt/sources.list
+    fi
+fi
+# Also try standard command to be safe
+add-apt-repository universe -y || true
+
+# Add Third-Party Repositories
+echo "Adding third-party repositories..."
+mkdir -p /etc/apt/keyrings
 
 # Google Chrome
 if [ ! -f /etc/apt/keyrings/google-chrome.gpg ]; then
@@ -93,17 +84,44 @@ if [ ! -f /etc/apt/keyrings/packages.microsoft.gpg ]; then
 fi
 
 # Spotify
-if [ ! -f /etc/apt/keyrings/spotify.gpg ]; then
-    add_repo_key "https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg" "/etc/apt/keyrings/spotify.gpg"
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | tee /etc/apt/sources.list.d/spotify.list
-fi
+# Clean up potential existing GPG error causes
+rm -f /etc/apt/sources.list.d/spotify.list /etc/apt/keyrings/spotify.gpg
+add_repo_key "https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg" "/etc/apt/keyrings/spotify.gpg"
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | tee /etc/apt/sources.list.d/spotify.list
 
-# Update to ensuring lists are valid
+
+# 3. Main System Update & Install
+echo "Updating system and installing main components..."
+# Clear lists to ensure we get fresh data especially for new repos in chroot
+rm -rf /var/lib/apt/lists/*
 apt-get update
+apt-get upgrade -y
+
+# Remove Ubuntu Installers
+echo "Removing Ubuntu Installers..."
+remove_if_installed "ubiquity*"
+remove_if_installed "ubuntu-desktop-installer"
+remove_if_installed "ubuntu-desktop-bootstrap"
+
+# Install Dependencies
+echo "Installing main packages..."
+apt-get install -y \
+    calamares \
+    calamares-settings-ubuntu-common \
+    python3-gi \
+    python3-gi-cairo \
+    gir1.2-gtk-4.0 \
+    gir1.2-adw-1 \
+    git \
+    gnome-shell-extension-manager \
+    gnome-shell-extensions \
+    gnome-shell-extension-dash-to-dock \
+    gnome-shell-extension-dash-to-panel \
+    dconf-cli
 
 mkdir -p "$SCOPEOS_DIR"
 
-# 3. Install Themes
+# 4. Install Themes
 if [ -f "$SCOPEOS_DIR/scripts/download_themes.sh" ]; then
     bash "$SCOPEOS_DIR/scripts/download_themes.sh"
 else
@@ -111,7 +129,7 @@ else
     exit 1
 fi
 
-# 4. Install Apps (Theme Switcher & Welcome)
+# 5. Install Apps (Theme Switcher & Welcome)
 echo "Installing Control Center and Welcome App..."
 cp "$SCOPEOS_DIR/theme-switcher/scopeos-control-center.py" /usr/local/bin/scopeos-control-center
 cp "$SCOPEOS_DIR/scripts/scopeos-welcome.py" /usr/local/bin/scopeos-welcome
@@ -161,7 +179,7 @@ mkdir -p /etc/skel/Desktop
 cp /usr/share/applications/install-scopeos.desktop /etc/skel/Desktop/
 chmod +x /etc/skel/Desktop/install-scopeos.desktop
 
-# 5. Configure Calamares
+# 6. Configure Calamares
 echo "Configuring Calamares..."
 # Copy main configs to /etc/calamares
 if [ -d "$SCOPEOS_DIR/calamares-config" ]; then
@@ -181,14 +199,14 @@ if [ -f "$SCOPEOS_DIR/assets/scopeos-logo.png" ]; then
     cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/calamares/branding/scopeos/
 fi
 
-# 6. Privacy Cleanup
+# 7. Privacy Cleanup
 if [ -f "$SCOPEOS_DIR/scripts/privacy_cleanup.sh" ]; then
     bash "$SCOPEOS_DIR/scripts/privacy_cleanup.sh"
 else
     echo "Warning: Privacy cleanup script not found."
 fi
 
-# 7. Set Default Wallpaper, Theme, and Boot Logo
+# 8. Set Default Wallpaper, Theme, and Boot Logo
 echo "Setting defaults..."
 
 # Boot Logo (Plymouth)
@@ -234,7 +252,7 @@ else
     echo "Warning: dconf not found, skipping schema update."
 fi
 
-# 8. Clean up
+# 9. Clean up
 apt-get autoremove -y
 apt-get clean
 
