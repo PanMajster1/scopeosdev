@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""
+ScopeOS Welcome Application
+A GTK4 + Libadwaita application shown on first login.
+"""
+
 import sys
 import subprocess
 import gi
@@ -6,9 +11,12 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Gtk, Adw, Gio, GLib
+from gi.repository import Gtk, Adw, Gio
 
 class WelcomeWindow(Adw.Window):
+    """
+    Main window for the Welcome application.
+    """
     def __init__(self, app):
         super().__init__(application=app, title="Welcome to ScopeOS")
         self.set_default_size(600, 450)
@@ -26,7 +34,7 @@ class WelcomeWindow(Adw.Window):
         self.set_content(content)
 
         # Logo
-        logo_path = "/opt/scopeos/assets/scopeos-logo.png"
+        logo_path = "/usr/share/scopeos/assets/scopeos-logo.png"
         picture = Gtk.Picture.new_for_filename(logo_path)
         picture.set_can_shrink(False)
         picture.set_size_request(128, 128)
@@ -64,18 +72,24 @@ class WelcomeWindow(Adw.Window):
         install_btn.connect("clicked", self.on_install_clicked)
         btn_box.append(install_btn)
 
-    def on_try_clicked(self, button):
+    def on_try_clicked(self, _button):
+        """Closes the welcome window."""
         self.close()
 
-    def on_install_clicked(self, button):
+    def on_install_clicked(self, _button):
+        """Launches the installer."""
         try:
             # Launch Calamares with pkexec
+            # Note: subprocess.Popen is safe here as arguments are a list
             subprocess.Popen(["pkexec", "calamares"])
-        except Exception as e:
+        except OSError as e:
             print(f"Failed to launch Calamares: {e}")
         self.close()
 
 class WelcomeApp(Adw.Application):
+    """
+    Main Application class.
+    """
     def __init__(self):
         super().__init__(application_id="com.scopeos.Welcome",
                          flags=Gio.ApplicationFlags.FLAGS_NONE)

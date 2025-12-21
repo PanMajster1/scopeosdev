@@ -8,7 +8,7 @@ import sys
 import os
 import subprocess
 import threading
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 import gi
 gi.require_version('Gtk', '4.0')
@@ -59,12 +59,13 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         flowbox.set_selection_mode(Gtk.SelectionMode.NONE)
         theme_group.add(flowbox)
 
+        # Updated to include potential preview paths if they exist
         themes = [
-            {"id": "macos", "name": "MacOS Like", "icon": "user-desktop"},
-            {"id": "win10", "name": "Windows 10", "icon": "desktop-profiler"},
-            {"id": "win11", "name": "Windows 11", "icon": "computer"},
-            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "distributor-logo"},
-            {"id": "gnome", "name": "Pure GNOME", "icon": "gnome-logo-icon"},
+            {"id": "macos", "name": "MacOS Like", "icon": "user-desktop", "preview": "/usr/share/scopeos/assets/macos-preview.png"},
+            {"id": "win10", "name": "Windows 10", "icon": "desktop-profiler", "preview": "/usr/share/scopeos/assets/win10-preview.png"},
+            {"id": "win11", "name": "Windows 11", "icon": "computer", "preview": "/usr/share/scopeos/assets/win11-preview.png"},
+            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "distributor-logo", "preview": "/usr/share/scopeos/assets/ubuntu-preview.png"},
+            {"id": "gnome", "name": "Pure GNOME", "icon": "gnome-logo-icon", "preview": "/usr/share/scopeos/assets/gnome-preview.png"},
         ]
 
         for theme in themes:
@@ -96,7 +97,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 text=True
             ).strip()
             return "dark" in result
-        except subprocess.SubprocessError:
+        except (subprocess.SubprocessError, FileNotFoundError):
             return False
 
     def toggle_dark_mode(self, _switch: Gtk.Switch, state: bool) -> bool:
@@ -111,11 +112,13 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         except subprocess.SubprocessError as e:
             print(f"Failed to toggle dark mode: {e}")
             # In a real app, we might want to revert the switch state here
+            # For now, we assume the user will try again or it's a transient error.
         return True
 
     def is_extension_installed(self, extension_id: str) -> bool:
         """Checks if a GNOME extension is installed."""
         try:
+            # Check installed extensions via gnome-extensions tool
             subprocess.run(
                 ["gnome-extensions", "info", extension_id],
                 check=True,
@@ -208,6 +211,8 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         if not config:
             raise ValueError("Unknown theme ID")
 
+        # Note: 'gsettings set' might not work directly if run as root or in some contexts without dbus.
+        # Ideally, this tool runs in the user session.
         commands = [
             ["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", config["gtk"]],
             ["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", config["icon"]],

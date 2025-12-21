@@ -94,8 +94,13 @@ mkdir -p /etc/apt/keyrings
 add_repo_key() {
     local url="$1"
     local keyring="$2"
-    # Although we don't have hardcoded checksums (urls change), we ensure pipe safety
-    curl -fsSL "$url" | gpg --dearmor --yes -o "$keyring"
+
+    # Check if key already exists to avoid re-downloading
+    if [ ! -f "$keyring" ]; then
+        curl -fsSL "$url" | gpg --dearmor --yes -o "$keyring"
+    else
+        echo "Key $keyring already exists."
+    fi
 }
 
 # Google Chrome
@@ -111,10 +116,16 @@ if [ ! -f /etc/apt/keyrings/packages.microsoft.gpg ]; then
 fi
 
 # Spotify
-if [ ! -f /etc/apt/keyrings/spotify.gpg ]; then
-    add_repo_key "https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg" "/etc/apt/keyrings/spotify.gpg"
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | tee /etc/apt/sources.list.d/spotify.list
+# Pre-cleanup existing spotify config to avoid duplicates/errors
+if [ -f /etc/apt/sources.list.d/spotify.list ]; then
+    rm /etc/apt/sources.list.d/spotify.list
 fi
+if [ -f /etc/apt/keyrings/spotify.gpg ]; then
+    rm /etc/apt/keyrings/spotify.gpg
+fi
+
+add_repo_key "https://download.spotify.com/debian/pubkey_C85668DF69375001.gpg" "/etc/apt/keyrings/spotify.gpg"
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/spotify.gpg] http://repository.spotify.com stable non-free" | tee /etc/apt/sources.list.d/spotify.list
 
 # Update to ensuring lists are valid
 apt-get update
@@ -130,6 +141,12 @@ else
 fi
 
 # 4. Install Apps (Theme Switcher & Welcome)
+echo "Installing ScopeOS assets..."
+mkdir -p /usr/share/scopeos/assets
+if [ -d "$SCOPEOS_DIR/assets" ]; then
+    cp "$SCOPEOS_DIR/assets/"* /usr/share/scopeos/assets/
+fi
+
 echo "Installing Control Center and Welcome App..."
 cp "$SCOPEOS_DIR/theme-switcher/scopeos-control-center.py" /usr/local/bin/scopeos-control-center
 cp "$SCOPEOS_DIR/scripts/scopeos-welcome.py" /usr/local/bin/scopeos-welcome
@@ -168,7 +185,7 @@ cat <<EOF > /usr/share/applications/install-scopeos.desktop
 Name=Install ScopeOS
 Comment=Install ScopeOS to your drive
 Exec=pkexec calamares
-Icon=/opt/scopeos/assets/scopeos-logo.png
+Icon=/usr/share/scopeos/assets/scopeos-logo.png
 Terminal=false
 Type=Application
 Categories=System;
