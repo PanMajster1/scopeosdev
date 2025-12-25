@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 """
-ScopeOS Welcome Application
-A GTK4 + Libadwaita application shown on first login.
+ScopeOS Welcome
+A GTK4 + Libadwaita welcome application for ScopeOS.
 """
 
 import sys
 import subprocess
 import gi
 
+# pylint: disable=wrong-import-position
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
 from gi.repository import Gtk, Adw, Gio
 
+
 class WelcomeWindow(Adw.Window):
     """
     Main window for the Welcome application.
     """
-    def __init__(self, app):
-        super().__init__(application=app, title="Welcome to ScopeOS")
+    def __init__(self, application):
+        super().__init__(application=application, title="Welcome to ScopeOS")
         self.set_default_size(600, 450)
         self.set_resizable(False)
 
@@ -46,7 +48,8 @@ class WelcomeWindow(Adw.Window):
         content.append(title)
 
         # Description
-        desc = Gtk.Label(label="ScopeOS is ready to go. You can try it out or install it to your computer.")
+        desc_label = "ScopeOS is ready to go. You can try it out or install it to your computer."
+        desc = Gtk.Label(label=desc_label)
         desc.set_wrap(True)
         desc.set_max_width_chars(40)
         desc.add_css_class("body")
@@ -73,33 +76,38 @@ class WelcomeWindow(Adw.Window):
         btn_box.append(install_btn)
 
     def on_try_clicked(self, _button):
-        """Closes the welcome window."""
+        """Handler for the 'Try' button."""
         self.close()
 
     def on_install_clicked(self, _button):
-        """Launches the installer."""
+        """Handler for the 'Install' button."""
         try:
             # Launch Calamares with pkexec
-            # Note: subprocess.Popen is safe here as arguments are a list
+            # subprocess.Popen is used here to fire and forget without blocking the UI thread
+            # or needing to wait for the process.
+            # pylint: disable=consider-using-with
             subprocess.Popen(["pkexec", "calamares"])
-        except OSError as e:
+        except subprocess.SubprocessError as e:
             print(f"Failed to launch Calamares: {e}")
         self.close()
 
+
 class WelcomeApp(Adw.Application):
     """
-    Main Application class.
+    Application class for ScopeOS Welcome.
     """
     def __init__(self):
         super().__init__(application_id="com.scopeos.Welcome",
                          flags=Gio.ApplicationFlags.FLAGS_NONE)
 
     def do_activate(self):
+        """Activates the application."""
         win = self.props.active_window
         if not win:
             win = WelcomeWindow(self)
         win.present()
 
+
 if __name__ == "__main__":
-    app = WelcomeApp()
-    app.run(sys.argv)
+    welcome_app = WelcomeApp()
+    welcome_app.run(sys.argv)

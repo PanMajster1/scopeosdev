@@ -8,9 +8,10 @@ import sys
 import os
 import subprocess
 import threading
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import gi
+# pylint: disable=wrong-import-position
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GLib
@@ -35,6 +36,50 @@ class ScopeOSWindow(Adw.PreferencesWindow):
     """
     The main window containing settings and theme selection.
     """
+
+    THEME_CONFIGS: Dict[str, Any] = {
+        "macos": {
+            "gtk": "WhiteSur-Light",
+            "icon": "WhiteSur",
+            "shell": "WhiteSur-Light",
+            "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
+            "dock": True,
+            "panel": False
+        },
+        "win10": {
+            "gtk": "Windows-10",
+            "icon": "Windows-10",
+            "shell": "Windows-10",
+            "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
+            "dock": False,
+            "panel": True
+        },
+        "win11": {
+            "gtk": "Fluent-Light",
+            "icon": "Fluent",
+            "shell": "Fluent-Light",
+            "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
+            "dock": False,
+            "panel": True
+        },
+        "ubuntu": {
+            "gtk": "Yaru",
+            "icon": "Yaru",
+            "shell": "Yaru",
+            "wallpaper": "/usr/share/backgrounds/ubuntu-wallpaper.jpg",
+            "dock": True,
+            "panel": False
+        },
+        "gnome": {
+            "gtk": "Adwaita",
+            "icon": "Adwaita",
+            "shell": "Default",
+            "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
+            "dock": False,
+            "panel": False
+        },
+    }
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_title("ScopeOS Control Center")
@@ -111,22 +156,21 @@ class ScopeOSWindow(Adw.PreferencesWindow):
             )
         except subprocess.SubprocessError as e:
             print(f"Failed to toggle dark mode: {e}")
-            # In a real app, we might want to revert the switch state here
-            # For now, we assume the user will try again or it's a transient error.
+            self.add_toast(Adw.Toast.new(f"Failed to toggle dark mode: {e}"))
+            return True # Keep switch state visually consistent even if failed, or handle revert
         return True
 
     def is_extension_installed(self, extension_id: str) -> bool:
         """Checks if a GNOME extension is installed."""
         try:
-            # Check installed extensions via gnome-extensions tool
-            subprocess.run(
+            result = subprocess.run(
                 ["gnome-extensions", "info", extension_id],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                capture_output=True,
+                text=True
             )
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
+            return result.returncode == 0
+        except FileNotFoundError:
+            # gnome-extensions command not found
             return False
 
     def set_extension_state(self, extension_id: str, enable: bool):
@@ -164,55 +208,19 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         """Executes the necessary commands to change the theme."""
         print(f"Applying theme: {theme_id}")
 
-        theme_configs: Dict[str, Any] = {
-            "macos": {
-                "gtk": "WhiteSur-Light",
-                "icon": "WhiteSur",
-                "shell": "WhiteSur-Light",
-                "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
-                "dock": True,
-                "panel": False
-            },
-            "win10": {
-                "gtk": "Windows-10",
-                "icon": "Windows-10",
-                "shell": "Windows-10",
-                "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
-                "dock": False,
-                "panel": True
-            },
-            "win11": {
-                "gtk": "Fluent-Light",
-                "icon": "Fluent",
-                "shell": "Fluent-Light",
-                "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
-                "dock": False,
-                "panel": True
-            },
-            "ubuntu": {
-                "gtk": "Yaru",
-                "icon": "Yaru",
-                "shell": "Yaru",
-                "wallpaper": "/usr/share/backgrounds/ubuntu-wallpaper.jpg",
-                "dock": True,
-                "panel": False
-            },
-            "gnome": {
-                "gtk": "Adwaita",
-                "icon": "Adwaita",
-                "shell": "Default",
-                "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
-                "dock": False,
-                "panel": False
-            },
-        }
-
-        config = theme_configs.get(theme_id)
+        config = self.THEME_CONFIGS.get(theme_id)
         if not config:
             raise ValueError("Unknown theme ID")
 
-        # Note: 'gsettings set' might not work directly if run as root or in some contexts without dbus.
-        # Ideally, this tool runs in the user session.
+        # Validation: Check if wallpaper exists
+        if config["wallpaper"] and not os.path.exists(config["wallpaper"]):
+             print(f"Warning: Wallpaper {config['wallpaper']} not found.")
+
+        # Validation: Check if themes are installed (roughly)
+        # We can't easily check 'gsettings' valid values without parsing 'gsettings range',
+        # but we can assume if the user ran the install script, they are there.
+        # Ideally, we should check /usr/share/themes or ~/.themes
+
         commands = [
             ["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", config["gtk"]],
             ["gsettings", "set", "org.gnome.desktop.interface", "icon-theme", config["icon"]],
@@ -229,6 +237,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 subprocess.run(cmd, check=True)
             except subprocess.SubprocessError as e:
                 print(f"Warning: Command failed: {e}")
+                # We don't raise here to allow partial application
 
         dash_to_dock_id = "dash-to-dock@micxgx.gmail.com"
         dash_to_panel_id = "dash-to-panel@jderose9.github.com"
