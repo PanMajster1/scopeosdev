@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Check for root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: This script must be run as root." >&2
+    exit 1
+fi
+
 echo "Starting ScopeOS Privacy Cleanup..."
 
 export DEBIAN_FRONTEND=noninteractive
@@ -14,29 +20,30 @@ PACKAGES_TO_REMOVE=(
 )
 
 echo "Removing telemetry packages: ${PACKAGES_TO_REMOVE[*]}"
+# Use remove_if_installed approach or simple loop to avoid failure if one is missing but others are present
+# `apt-get remove` will fail if a package is not installed and you ask to remove it?
+# Actually, apt-get remove ignores uninstalled packages unless you use wildcard, usually.
+# But for safety, "|| true" is okay, BUT it masks real errors (like lock file).
+# Better: check first.
 
 for pkg in "${PACKAGES_TO_REMOVE[@]}"; do
-    if dpkg -l | grep -q "^ii  $pkg"; then
-        echo "Purging $pkg..."
-        apt-get remove --purge -y "$pkg" || echo "Warning: Failed to purge $pkg"
+    if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+        echo "Removing $pkg..."
+        apt-get purge -y "$pkg"
     else
-        echo "Package $pkg not installed."
+        echo "$pkg not installed, skipping."
     fi
 done
 
 # 2. Disable Telemetry Services (if any remain)
-echo "Disabling telemetry services..."
-SERVICES=(
-    "apport.service"
-    "whoopsie.service"
-)
+# Only try to disable if systemd is active (might not be in chroot)
+# But `systemctl` usually fails gracefully or we can check.
+# In a chroot (Cubic), systemd is not running as PID 1.
+# We should mask the services so they don't start on boot.
 
-for service in "${SERVICES[@]}"; do
-    if systemctl is-active --quiet "$service" || systemctl is-enabled --quiet "$service"; then
-        echo "Disabling $service..."
-        systemctl disable --now "$service" 2>/dev/null || echo "Warning: Failed to disable $service"
-    fi
-done
+echo "Masking telemetry services..."
+systemctl mask apport.service 2>/dev/null || true
+systemctl mask whoopsie.service 2>/dev/null || true
 
 # 3. Configure Privacy Settings (gsettings defaults for new users)
 echo "Configuring privacy defaults..."
@@ -50,11 +57,11 @@ remember-recent-files=false
 remember-app-usage=false
 EOF
 
-# Update dconf database
+# Update dconf database if dconf is installed
 if command -v dconf >/dev/null; then
     dconf update
 else
-    echo "Warning: dconf command not found, skipping update."
+    echo "Warning: dconf not found. Skipping dconf update."
 fi
 
 echo "Privacy cleanup complete."

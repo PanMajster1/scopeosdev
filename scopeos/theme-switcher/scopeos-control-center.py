@@ -8,9 +8,10 @@ import sys
 import os
 import subprocess
 import threading
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 
 import gi
+# pylint: disable=wrong-import-position
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GLib
@@ -35,6 +36,50 @@ class ScopeOSWindow(Adw.PreferencesWindow):
     """
     The main window containing settings and theme selection.
     """
+
+    THEME_CONFIGS: Dict[str, Any] = {
+        "macos": {
+            "gtk": "WhiteSur-Light",
+            "icon": "WhiteSur",
+            "shell": "WhiteSur-Light",
+            "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
+            "dock": True,
+            "panel": False
+        },
+        "win10": {
+            "gtk": "Windows-10",
+            "icon": "Windows-10",
+            "shell": "Windows-10",
+            "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
+            "dock": False,
+            "panel": True
+        },
+        "win11": {
+            "gtk": "Fluent-Light",
+            "icon": "Fluent",
+            "shell": "Fluent-Light",
+            "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
+            "dock": False,
+            "panel": True
+        },
+        "ubuntu": {
+            "gtk": "Yaru",
+            "icon": "Yaru",
+            "shell": "Yaru",
+            "wallpaper": "/usr/share/backgrounds/ubuntu-wallpaper.jpg",
+            "dock": True,
+            "panel": False
+        },
+        "gnome": {
+            "gtk": "Adwaita",
+            "icon": "Adwaita",
+            "shell": "Default",
+            "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
+            "dock": False,
+            "panel": False
+        },
+    }
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_title("ScopeOS Control Center")
@@ -162,50 +207,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         """Executes the necessary commands to change the theme."""
         print(f"Applying theme: {theme_id}")
 
-        theme_configs: Dict[str, Any] = {
-            "macos": {
-                "gtk": "WhiteSur-Light",
-                "icon": "WhiteSur",
-                "shell": "WhiteSur-Light",
-                "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
-                "dock": True,
-                "panel": False
-            },
-            "win10": {
-                "gtk": "Windows-10",
-                "icon": "Windows-10",
-                "shell": "Windows-10",
-                "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
-                "dock": False,
-                "panel": True
-            },
-            "win11": {
-                "gtk": "Fluent-Light",
-                "icon": "Fluent",
-                "shell": "Fluent-Light",
-                "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
-                "dock": False,
-                "panel": True
-            },
-            "ubuntu": {
-                "gtk": "Yaru",
-                "icon": "Yaru",
-                "shell": "Yaru",
-                "wallpaper": "/usr/share/backgrounds/ubuntu-wallpaper.jpg",
-                "dock": True,
-                "panel": False
-            },
-            "gnome": {
-                "gtk": "Adwaita",
-                "icon": "Adwaita",
-                "shell": "Default",
-                "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
-                "dock": False,
-                "panel": False
-            },
-        }
-
-        config = theme_configs.get(theme_id)
+        config = self.THEME_CONFIGS.get(theme_id)
         if not config:
             raise ValueError("Unknown theme ID")
 
