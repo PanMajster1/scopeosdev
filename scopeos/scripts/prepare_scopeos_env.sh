@@ -17,15 +17,22 @@ echo "=== Starting ScopeOS System Preparation ==="
 
 export DEBIAN_FRONTEND=noninteractive
 
-# Helper function to remove packages only if they are installed
-remove_if_installed() {
-    local pkg="$1"
-    # Check if package is installed (status 'ii')
-    if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
-        echo "Removing $pkg..."
-        apt-get purge -y "$pkg"
+# Helper function for adding repo keys securely
+add_repo_key() {
+    local url="$1"
+    local keyring_path="$2"
+    local temp_key
+    temp_key=$(mktemp)
+
+    # Download first to catch connection errors
+    if curl -fsSL "$url" -o "$temp_key"; then
+        # Dearmor safely
+        gpg --dearmor --yes -o "$keyring_path" < "$temp_key"
+        rm -f "$temp_key"
     else
-        echo "Package $pkg not installed, skipping."
+        echo "Error: Failed to download key from $url" >&2
+        rm -f "$temp_key"
+        return 1
     fi
 }
 
@@ -55,24 +62,18 @@ echo "Configuring repositories..."
 # Manually enable universe repo if add-apt-repository fails or isn't enough in chroot
 # Handle Ubuntu 24.04 DEB822 format (ubuntu.sources)
 if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-    echo "Checking ubuntu.sources for universe..."
     if ! grep -q "universe" /etc/apt/sources.list.d/ubuntu.sources; then
-        echo "Manually enabling universe repository in ubuntu.sources..."
-        # Append universe to the Components line if missing
+        echo "Enabling universe in ubuntu.sources..."
         sed -i 's/Components: main restricted/Components: main restricted universe/g' /etc/apt/sources.list.d/ubuntu.sources
     fi
-fi
-
-# Handle legacy sources.list format
-if [ -f /etc/apt/sources.list ] && ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
-    # Only edit if it looks like a valid sources file (has deb lines)
-    if grep -q "^deb " /etc/apt/sources.list; then
-        echo "Manually enabling universe repository in sources.list..."
+elif [ -f /etc/apt/sources.list ]; then
+    # Legacy format fallback
+    if grep -q "^deb " /etc/apt/sources.list && ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
+        echo "Enabling universe in sources.list..."
         sed -i 's/main restricted/main restricted universe/g' /etc/apt/sources.list
     fi
 fi
-
-# Also try standard command to be safe (it might handle other quirks)
+# Redundant safety net
 add-apt-repository universe -y || true
 
 # Add Third-Party Repositories
@@ -127,6 +128,8 @@ apt-get install -y \
     gnome-shell-extension-dash-to-panel \
     dconf-cli
 
+# 6. Setup ScopeOS Files
+echo "Setting up ScopeOS files..."
 mkdir -p "$SCOPEOS_DIR"
 
 # 4. Install Themes
@@ -144,7 +147,7 @@ cp "$SCOPEOS_DIR/scripts/scopeos-welcome.py" /usr/local/bin/scopeos-welcome
 chmod +x /usr/local/bin/scopeos-control-center
 chmod +x /usr/local/bin/scopeos-welcome
 
-# Create Desktop Entry for Control Center
+# Create Desktop Entries
 cat <<EOF > /usr/share/applications/scopeos-control-center.desktop
 [Desktop Entry]
 Name=ScopeOS Control Center
@@ -156,7 +159,6 @@ Type=Application
 Categories=Settings;
 EOF
 
-# Create Desktop Entry for Welcome App (Autostart)
 mkdir -p /etc/xdg/autostart
 cat <<EOF > /etc/xdg/autostart/scopeos-welcome.desktop
 [Desktop Entry]
@@ -170,7 +172,6 @@ Categories=Utility;
 X-GNOME-Autostart-enabled=true
 EOF
 
-# Create Desktop Entry for Installer
 cat <<EOF > /usr/share/applications/install-scopeos.desktop
 [Desktop Entry]
 Name=Install ScopeOS
@@ -182,23 +183,20 @@ Type=Application
 Categories=System;
 EOF
 
-# Copy Installer Shortcut to Skeleton Desktop (for new users/live user)
+# Copy Installer Shortcut to Skeleton Desktop
 mkdir -p /etc/skel/Desktop
 cp /usr/share/applications/install-scopeos.desktop /etc/skel/Desktop/
 chmod +x /etc/skel/Desktop/install-scopeos.desktop
 
 # 6. Configure Calamares
 echo "Configuring Calamares..."
-# Copy main configs to /etc/calamares
 if [ -d "$SCOPEOS_DIR/calamares-config" ]; then
-    cp -r "$SCOPEOS_DIR/calamares-config/settings.conf" /etc/calamares/
-    cp -r "$SCOPEOS_DIR/calamares-config/modules" /etc/calamares/
-else
-    echo "Warning: Calamares config not found."
+    mkdir -p /etc/calamares
+    cp -r "$SCOPEOS_DIR/calamares-config/settings.conf" /etc/calamares/ || echo "Warning: settings.conf missing"
+    cp -r "$SCOPEOS_DIR/calamares-config/modules" /etc/calamares/ || echo "Warning: modules dir missing"
 fi
 
-# Configure Branding
-# Calamares expects branding in /usr/share/calamares/branding/<brand_name>
+# Branding
 mkdir -p /usr/share/calamares/branding/scopeos
 if [ -f "$SCOPEOS_DIR/calamares-config/branding.desc" ]; then
     cp "$SCOPEOS_DIR/calamares-config/branding.desc" /usr/share/calamares/branding/scopeos/
@@ -217,44 +215,43 @@ fi
 # 8. Set Default Wallpaper, Theme, and Boot Logo
 echo "Setting defaults..."
 
-# Boot Logo (Plymouth)
+# Boot Logo
 if [ -f "$SCOPEOS_DIR/assets/scopeos-logo.png" ]; then
     echo "Updating Plymouth Boot Logo..."
-    # Replace default spinner watermark and fallback
     if [ -d "/usr/share/plymouth/themes/spinner" ]; then
         cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/spinner/watermark.png
         cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/spinner/bgrt-fallback.png
     fi
-    # Also attempt to replace ubuntu-logo theme assets if present
     if [ -d "/usr/share/plymouth/themes/ubuntu-logo" ]; then
         cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo.png
         cp "$SCOPEOS_DIR/assets/scopeos-logo.png" /usr/share/plymouth/themes/ubuntu-logo/ubuntu-logo16.png
     fi
-    # Update initramfs to apply changes
     update-initramfs -u
 fi
 
+# Dconf Defaults
 mkdir -p /etc/dconf/db/local.d/
 cat <<EOF > /etc/dconf/db/local.d/10-scopeos-theme
 [org/gnome/desktop/interface]
 gtk-theme='WhiteSur-Light'
 icon-theme='WhiteSur'
 color-scheme='prefer-light'
-# Enable User Themes Extension
+
 [org/gnome/shell]
 enabled-extensions=['user-theme@gnome-shell-extensions.gcampax.github.com', 'ubuntu-dock@ubuntu.com', 'ding@rastersoft.com']
+
 [org/gnome/shell/extensions/user-theme]
 name='WhiteSur-Light'
+
 [org/gnome/desktop/background]
 picture-uri='file:///usr/share/backgrounds/macos-wallpaper.jpg'
 picture-uri-dark='file:///usr/share/backgrounds/macos-wallpaper.jpg'
 EOF
 
-# Update dconf if possible, warn otherwise
 if command -v dconf >/dev/null; then
     dconf update
 else
-    echo "Warning: dconf not found, skipping schema update."
+    echo "Warning: dconf not found."
 fi
 
 # 9. Clean up
@@ -262,4 +259,3 @@ apt-get autoremove -y
 apt-get clean
 
 echo "=== ScopeOS Preparation Complete ==="
-echo "You can now proceed to repack the ISO."

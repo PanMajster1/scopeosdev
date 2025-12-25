@@ -46,6 +46,7 @@ systemctl mask apport.service 2>/dev/null || true
 systemctl mask whoopsie.service 2>/dev/null || true
 
 # 3. Configure Privacy Settings (gsettings defaults for new users)
+echo "Configuring privacy defaults..."
 mkdir -p /etc/dconf/db/local.d/
 
 cat <<EOF > /etc/dconf/db/local.d/99-scopeos-privacy

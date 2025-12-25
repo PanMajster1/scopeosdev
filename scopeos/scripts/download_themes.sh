@@ -49,14 +49,36 @@ install_git_theme() {
         popd > /dev/null
     else
         echo "Error: Failed to clone $REPO_URL" >&2
+        rm -rf "$TEMP_DIR"
+        return 1
+    fi
+    rm -rf "$TEMP_DIR"
+}
+
+# Wrapper to run install_git_theme and log output to a temp file for parallel execution
+run_install_bg() {
+    local logfile
+    logfile=$(mktemp)
+    if install_git_theme "$1" "$2" "$3" > "$logfile" 2>&1; then
+        cat "$logfile"
+        rm "$logfile"
+        return 0
+    else
+        cat "$logfile" >&2
+        rm "$logfile"
         return 1
     fi
 }
 
+echo "Starting theme downloads in parallel..."
+pids=""
+
 # 1. MacOS Theme (WhiteSur)
-echo "Installing MacOS Theme (WhiteSur)..."
-install_git_theme "https://github.com/vinceliuice/WhiteSur-gtk-theme.git" "WhiteSur" "./install.sh -d \"$THEMES_DIR\" -t all -N stable"
-install_git_theme "https://github.com/vinceliuice/WhiteSur-icon-theme.git" "WhiteSur-Icons" "./install.sh -d \"$ICONS_DIR\""
+run_install_bg "https://github.com/vinceliuice/WhiteSur-gtk-theme.git" "WhiteSur" "./install.sh -d \"$THEMES_DIR\" -t all -N stable" &
+pids="$pids $!"
+
+run_install_bg "https://github.com/vinceliuice/WhiteSur-icon-theme.git" "WhiteSur-Icons" "./install.sh -d \"$ICONS_DIR\"" &
+pids="$pids $!"
 
 # 2. Windows 10 Theme
 echo "Installing Windows 10 Theme..."
@@ -65,18 +87,16 @@ install_git_theme "https://github.com/B00merang-Project/Windows-10.git" "Windows
 install_git_theme "https://github.com/B00merang-Project/Windows-10-Icons.git" "Windows-10-Icons" "rm -rf \"$ICONS_DIR/Windows-10\" && mkdir -p \"$ICONS_DIR/Windows-10\" && mv * \"$ICONS_DIR/Windows-10/\""
 
 # 3. Windows 11 Theme
-echo "Installing Windows 11 Theme..."
-install_git_theme "https://github.com/vinceliuice/Fluent-gtk-theme.git" "Fluent-gtk-theme" "./install.sh -d \"$THEMES_DIR\""
-install_git_theme "https://github.com/vinceliuice/Fluent-icon-theme.git" "Fluent-icon-theme" "./install.sh -d \"$ICONS_DIR\""
+run_install_bg "https://github.com/vinceliuice/Fluent-gtk-theme.git" "Fluent-gtk-theme" "./install.sh -d \"$THEMES_DIR\"" &
+pids="$pids $!"
+
+run_install_bg "https://github.com/vinceliuice/Fluent-icon-theme.git" "Fluent-icon-theme" "./install.sh -d \"$ICONS_DIR\"" &
+pids="$pids $!"
 
 # 4. Backgrounds
-echo "Downloading Wallpapers..."
-
-# Helper for downloading
 download_file() {
     local URL="$1"
     local DEST="$2"
-    # Use -f to fail on 404/server errors
     if curl -fsSL -o "$DEST" "$URL"; then
         echo "Downloaded $DEST"
     else
@@ -111,5 +131,3 @@ fi
 if [ -f "/usr/share/backgrounds/warty-final-ubuntu.png" ]; then
     cp "/usr/share/backgrounds/warty-final-ubuntu.png" "$BACKGROUNDS_DIR/ubuntu-wallpaper.jpg"
 fi
-
-echo "Theme installation complete."
