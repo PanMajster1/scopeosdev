@@ -53,18 +53,26 @@ echo "Configuring repositories..."
 
 # Enable Universe
 # Manually enable universe repo if add-apt-repository fails or isn't enough in chroot
-if ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
-    echo "Manually enabling universe repository..."
-    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-        # Handle DEB822 format if present (Ubuntu 24.04+)
-        if ! grep -q "universe" /etc/apt/sources.list.d/ubuntu.sources; then
-             sed -i 's/Components: main restricted/Components: main restricted universe/g' /etc/apt/sources.list.d/ubuntu.sources
-        fi
-    else
+# Handle Ubuntu 24.04 DEB822 format (ubuntu.sources)
+if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+    echo "Checking ubuntu.sources for universe..."
+    if ! grep -q "universe" /etc/apt/sources.list.d/ubuntu.sources; then
+        echo "Manually enabling universe repository in ubuntu.sources..."
+        # Append universe to the Components line if missing
+        sed -i 's/Components: main restricted/Components: main restricted universe/g' /etc/apt/sources.list.d/ubuntu.sources
+    fi
+fi
+
+# Handle legacy sources.list format
+if [ -f /etc/apt/sources.list ] && ! grep -qE "^deb .*universe" /etc/apt/sources.list; then
+    # Only edit if it looks like a valid sources file (has deb lines)
+    if grep -q "^deb " /etc/apt/sources.list; then
+        echo "Manually enabling universe repository in sources.list..."
         sed -i 's/main restricted/main restricted universe/g' /etc/apt/sources.list
     fi
 fi
-# Also try standard command to be safe
+
+# Also try standard command to be safe (it might handle other quirks)
 add-apt-repository universe -y || true
 
 # Add Third-Party Repositories
@@ -232,14 +240,11 @@ cat <<EOF > /etc/dconf/db/local.d/10-scopeos-theme
 gtk-theme='WhiteSur-Light'
 icon-theme='WhiteSur'
 color-scheme='prefer-light'
-
 # Enable User Themes Extension
 [org/gnome/shell]
 enabled-extensions=['user-theme@gnome-shell-extensions.gcampax.github.com', 'ubuntu-dock@ubuntu.com', 'ding@rastersoft.com']
-
 [org/gnome/shell/extensions/user-theme]
 name='WhiteSur-Light'
-
 [org/gnome/desktop/background]
 picture-uri='file:///usr/share/backgrounds/macos-wallpaper.jpg'
 picture-uri-dark='file:///usr/share/backgrounds/macos-wallpaper.jpg'
