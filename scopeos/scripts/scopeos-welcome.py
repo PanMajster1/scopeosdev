@@ -36,7 +36,7 @@ class WelcomeWindow(Adw.Window):
         self.set_content(content)
 
         # Logo
-        logo_path = "/opt/scopeos/assets/scopeos-logo.png"
+        logo_path = "/usr/share/scopeos/assets/scopeos-logo.png"
         picture = Gtk.Picture.new_for_filename(logo_path)
         picture.set_can_shrink(False)
         picture.set_size_request(128, 128)

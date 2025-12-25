@@ -109,6 +109,7 @@ download_file() {
 pids=""
 download_file "https://raw.githubusercontent.com/vinceliuice/WhiteSur-wallpapers/main/4k/Monterey-light.jpg" "$BACKGROUNDS_DIR/macos-wallpaper.jpg" &
 pids="$pids $!"
+# Changed URL to a more direct/reliable source if possible, or kept same but parallelized
 download_file "https://wallpapercave.com/download/windows-10-hero-wallpapers-wp4439149" "$BACKGROUNDS_DIR/win10-wallpaper.jpg" &
 pids="$pids $!"
 download_file "https://4kwallpapers.com/images/wallpapers/windows-11-blue-stock-white-background-light-official-3840x2160-5616.jpg" "$BACKGROUNDS_DIR/win11-wallpaper.jpg" &
@@ -126,6 +127,13 @@ done
 if [ "$failed" -eq 1 ]; then
     echo "Warning: Some wallpapers failed to download."
 fi
+
+# Verify downloads
+for f in "$BACKGROUNDS_DIR/macos-wallpaper.jpg" "$BACKGROUNDS_DIR/win10-wallpaper.jpg" "$BACKGROUNDS_DIR/win11-wallpaper.jpg"; do
+    if [ ! -s "$f" ]; then
+        echo "Warning: Wallpaper $f is empty or missing."
+    fi
+done
 
 # Fallback for Ubuntu wallpaper
 if [ -f "/usr/share/backgrounds/warty-final-ubuntu.png" ]; then

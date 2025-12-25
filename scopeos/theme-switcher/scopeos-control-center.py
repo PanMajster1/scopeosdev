@@ -104,12 +104,13 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         flowbox.set_selection_mode(Gtk.SelectionMode.NONE)
         theme_group.add(flowbox)
 
+        # Updated to include potential preview paths if they exist
         themes = [
-            {"id": "macos", "name": "MacOS Like", "icon": "user-desktop"},
-            {"id": "win10", "name": "Windows 10", "icon": "desktop-profiler"},
-            {"id": "win11", "name": "Windows 11", "icon": "computer"},
-            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "distributor-logo"},
-            {"id": "gnome", "name": "Pure GNOME", "icon": "gnome-logo-icon"},
+            {"id": "macos", "name": "MacOS Like", "icon": "user-desktop", "preview": "/usr/share/scopeos/assets/macos-preview.png"},
+            {"id": "win10", "name": "Windows 10", "icon": "desktop-profiler", "preview": "/usr/share/scopeos/assets/win10-preview.png"},
+            {"id": "win11", "name": "Windows 11", "icon": "computer", "preview": "/usr/share/scopeos/assets/win11-preview.png"},
+            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "distributor-logo", "preview": "/usr/share/scopeos/assets/ubuntu-preview.png"},
+            {"id": "gnome", "name": "Pure GNOME", "icon": "gnome-logo-icon", "preview": "/usr/share/scopeos/assets/gnome-preview.png"},
         ]
 
         for theme in themes:
@@ -141,7 +142,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 text=True
             ).strip()
             return "dark" in result
-        except subprocess.SubprocessError:
+        except (subprocess.SubprocessError, FileNotFoundError):
             return False
 
     def toggle_dark_mode(self, _switch: Gtk.Switch, state: bool) -> bool:

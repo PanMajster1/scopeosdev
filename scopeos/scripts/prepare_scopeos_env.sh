@@ -177,7 +177,7 @@ cat <<EOF > /usr/share/applications/install-scopeos.desktop
 Name=Install ScopeOS
 Comment=Install ScopeOS to your drive
 Exec=pkexec calamares
-Icon=/opt/scopeos/assets/scopeos-logo.png
+Icon=/usr/share/scopeos/assets/scopeos-logo.png
 Terminal=false
 Type=Application
 Categories=System;
