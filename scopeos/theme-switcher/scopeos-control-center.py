@@ -8,10 +8,9 @@ import sys
 import os
 import subprocess
 import threading
-from typing import Dict, Any, Optional
+from typing import List, Dict, Any
 
 import gi
-# pylint: disable=wrong-import-position
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, Gio, GLib
@@ -36,50 +35,6 @@ class ScopeOSWindow(Adw.PreferencesWindow):
     """
     The main window containing settings and theme selection.
     """
-
-    THEME_CONFIGS: Dict[str, Any] = {
-        "macos": {
-            "gtk": "WhiteSur-Light",
-            "icon": "WhiteSur",
-            "shell": "WhiteSur-Light",
-            "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
-            "dock": True,
-            "panel": False
-        },
-        "win10": {
-            "gtk": "Windows-10",
-            "icon": "Windows-10",
-            "shell": "Windows-10",
-            "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
-            "dock": False,
-            "panel": True
-        },
-        "win11": {
-            "gtk": "Fluent-Light",
-            "icon": "Fluent",
-            "shell": "Fluent-Light",
-            "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
-            "dock": False,
-            "panel": True
-        },
-        "ubuntu": {
-            "gtk": "Yaru",
-            "icon": "Yaru",
-            "shell": "Yaru",
-            "wallpaper": "/usr/share/backgrounds/ubuntu-wallpaper.jpg",
-            "dock": True,
-            "panel": False
-        },
-        "gnome": {
-            "gtk": "Adwaita",
-            "icon": "Adwaita",
-            "shell": "Default",
-            "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
-            "dock": False,
-            "panel": False
-        },
-    }
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_title("ScopeOS Control Center")
@@ -104,13 +59,12 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         flowbox.set_selection_mode(Gtk.SelectionMode.NONE)
         theme_group.add(flowbox)
 
-        # Updated to include potential preview paths if they exist
         themes = [
-            {"id": "macos", "name": "MacOS Like", "icon": "user-desktop", "preview": "/usr/share/scopeos/assets/macos-preview.png"},
-            {"id": "win10", "name": "Windows 10", "icon": "desktop-profiler", "preview": "/usr/share/scopeos/assets/win10-preview.png"},
-            {"id": "win11", "name": "Windows 11", "icon": "computer", "preview": "/usr/share/scopeos/assets/win11-preview.png"},
-            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "distributor-logo", "preview": "/usr/share/scopeos/assets/ubuntu-preview.png"},
-            {"id": "gnome", "name": "Pure GNOME", "icon": "gnome-logo-icon", "preview": "/usr/share/scopeos/assets/gnome-preview.png"},
+            {"id": "macos", "name": "MacOS Like", "icon": "user-desktop"},
+            {"id": "win10", "name": "Windows 10", "icon": "desktop-profiler"},
+            {"id": "win11", "name": "Windows 11", "icon": "computer"},
+            {"id": "ubuntu", "name": "Ubuntu Default", "icon": "distributor-logo"},
+            {"id": "gnome", "name": "Pure GNOME", "icon": "gnome-logo-icon"},
         ]
 
         for theme in themes:
@@ -142,7 +96,7 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 text=True
             ).strip()
             return "dark" in result
-        except (subprocess.SubprocessError, FileNotFoundError):
+        except subprocess.SubprocessError:
             return False
 
     def toggle_dark_mode(self, _switch: Gtk.Switch, state: bool) -> bool:
@@ -156,21 +110,20 @@ class ScopeOSWindow(Adw.PreferencesWindow):
             )
         except subprocess.SubprocessError as e:
             print(f"Failed to toggle dark mode: {e}")
-            self.add_toast(Adw.Toast.new(f"Failed to toggle dark mode: {e}"))
-            return True # Keep switch state visually consistent even if failed, or handle revert
+            # In a real app, we might want to revert the switch state here
         return True
 
     def is_extension_installed(self, extension_id: str) -> bool:
         """Checks if a GNOME extension is installed."""
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["gnome-extensions", "info", extension_id],
-                capture_output=True,
-                text=True
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
-            return result.returncode == 0
-        except FileNotFoundError:
-            # gnome-extensions command not found
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
     def set_extension_state(self, extension_id: str, enable: bool):
@@ -208,18 +161,52 @@ class ScopeOSWindow(Adw.PreferencesWindow):
         """Executes the necessary commands to change the theme."""
         print(f"Applying theme: {theme_id}")
 
-        config = self.THEME_CONFIGS.get(theme_id)
+        theme_configs: Dict[str, Any] = {
+            "macos": {
+                "gtk": "WhiteSur-Light",
+                "icon": "WhiteSur",
+                "shell": "WhiteSur-Light",
+                "wallpaper": "/usr/share/backgrounds/macos-wallpaper.jpg",
+                "dock": True,
+                "panel": False
+            },
+            "win10": {
+                "gtk": "Windows-10",
+                "icon": "Windows-10",
+                "shell": "Windows-10",
+                "wallpaper": "/usr/share/backgrounds/win10-wallpaper.jpg",
+                "dock": False,
+                "panel": True
+            },
+            "win11": {
+                "gtk": "Fluent-Light",
+                "icon": "Fluent",
+                "shell": "Fluent-Light",
+                "wallpaper": "/usr/share/backgrounds/win11-wallpaper.jpg",
+                "dock": False,
+                "panel": True
+            },
+            "ubuntu": {
+                "gtk": "Yaru",
+                "icon": "Yaru",
+                "shell": "Yaru",
+                "wallpaper": "/usr/share/backgrounds/ubuntu-wallpaper.jpg",
+                "dock": True,
+                "panel": False
+            },
+            "gnome": {
+                "gtk": "Adwaita",
+                "icon": "Adwaita",
+                "shell": "Default",
+                "wallpaper": "/usr/share/backgrounds/gnome-wallpaper.jpg",
+                "dock": False,
+                "panel": False
+            },
+        }
+
+        config = theme_configs.get(theme_id)
         if not config:
             raise ValueError("Unknown theme ID")
-
-        # Validation: Check if wallpaper exists
-        if config["wallpaper"] and not os.path.exists(config["wallpaper"]):
-             print(f"Warning: Wallpaper {config['wallpaper']} not found.")
-
-        # Validation: Check if themes are installed (roughly)
-        # We can't easily check 'gsettings' valid values without parsing 'gsettings range',
-        # but we can assume if the user ran the install script, they are there.
-        # Ideally, we should check /usr/share/themes or ~/.themes
 
         commands = [
             ["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", config["gtk"]],
@@ -237,14 +224,9 @@ class ScopeOSWindow(Adw.PreferencesWindow):
                 subprocess.run(cmd, check=True)
             except subprocess.SubprocessError as e:
                 print(f"Warning: Command failed: {e}")
-                # We don't raise here to allow partial application
 
         dash_to_dock_id = "dash-to-dock@micxgx.gmail.com"
         dash_to_panel_id = "dash-to-panel@jderose9.github.com"
-        ubuntu_dock_id = "ubuntu-dock@ubuntu.com"
-
-        # Always disable Ubuntu Dock to prevent conflicts
-        self.set_extension_state(ubuntu_dock_id, False)
 
         if config.get("dock"):
             self.set_extension_state(dash_to_dock_id, True)

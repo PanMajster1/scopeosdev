@@ -1,26 +1,16 @@
 #!/usr/bin/env python3
-"""
-ScopeOS Welcome
-A GTK4 + Libadwaita welcome application for ScopeOS.
-"""
-
 import sys
 import subprocess
 import gi
 
-# pylint: disable=wrong-import-position
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 
-from gi.repository import Gtk, Adw, Gio
-
+from gi.repository import Gtk, Adw, Gio, GLib
 
 class WelcomeWindow(Adw.Window):
-    """
-    Main window for the Welcome application.
-    """
-    def __init__(self, application):
-        super().__init__(application=application, title="Welcome to ScopeOS")
+    def __init__(self, app):
+        super().__init__(application=app, title="Welcome to ScopeOS")
         self.set_default_size(600, 450)
         self.set_resizable(False)
 
@@ -36,7 +26,7 @@ class WelcomeWindow(Adw.Window):
         self.set_content(content)
 
         # Logo
-        logo_path = "/usr/share/scopeos/assets/scopeos-logo.png"
+        logo_path = "/opt/scopeos/assets/scopeos-logo.png"
         picture = Gtk.Picture.new_for_filename(logo_path)
         picture.set_can_shrink(False)
         picture.set_size_request(128, 128)
@@ -48,8 +38,7 @@ class WelcomeWindow(Adw.Window):
         content.append(title)
 
         # Description
-        desc_label = "ScopeOS is ready to go. You can try it out or install it to your computer."
-        desc = Gtk.Label(label=desc_label)
+        desc = Gtk.Label(label="ScopeOS is ready to go. You can try it out or install it to your computer.")
         desc.set_wrap(True)
         desc.set_max_width_chars(40)
         desc.add_css_class("body")
@@ -75,39 +64,28 @@ class WelcomeWindow(Adw.Window):
         install_btn.connect("clicked", self.on_install_clicked)
         btn_box.append(install_btn)
 
-    def on_try_clicked(self, _button):
-        """Handler for the 'Try' button."""
+    def on_try_clicked(self, button):
         self.close()
 
-    def on_install_clicked(self, _button):
-        """Handler for the 'Install' button."""
+    def on_install_clicked(self, button):
         try:
             # Launch Calamares with pkexec
-            # subprocess.Popen is used here to fire and forget without blocking the UI thread
-            # or needing to wait for the process.
-            # pylint: disable=consider-using-with
             subprocess.Popen(["pkexec", "calamares"])
-        except subprocess.SubprocessError as e:
+        except Exception as e:
             print(f"Failed to launch Calamares: {e}")
         self.close()
 
-
 class WelcomeApp(Adw.Application):
-    """
-    Application class for ScopeOS Welcome.
-    """
     def __init__(self):
         super().__init__(application_id="com.scopeos.Welcome",
                          flags=Gio.ApplicationFlags.FLAGS_NONE)
 
     def do_activate(self):
-        """Activates the application."""
         win = self.props.active_window
         if not win:
             win = WelcomeWindow(self)
         win.present()
 
-
 if __name__ == "__main__":
-    welcome_app = WelcomeApp()
-    welcome_app.run(sys.argv)
+    app = WelcomeApp()
+    app.run(sys.argv)
